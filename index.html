@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DomainWatch — Surveillance de domaines</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #13161e;
+      --surface2: #1a1e29;
+      --border: rgba(255,255,255,0.07);
+      --border-hover: rgba(255,255,255,0.14);
+      --text: #e8eaf0;
+      --text-muted: #6b7080;
+      --text-dim: #3d4255;
+      --accent: #4f8ef7;
+      --accent-dim: rgba(79,142,247,0.12);
+      --accent-hover: #6ba3f9;
+      --success: #34c97a;
+      --success-dim: rgba(52,201,122,0.1);
+      --danger: #f75f5f;
+      --danger-dim: rgba(247,95,95,0.1);
+      --warning: #f7b955;
+      --warning-dim: rgba(247,185,85,0.1);
+      --mono: 'DM Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+      --radius: 10px;
+      --radius-lg: 16px;
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem 5rem;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 3.5rem;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg { width: 18px; height: 18px; }
+
+    .logo-text {
+      font-family: var(--mono);
+      font-size: 1.1rem;
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 300;
+      letter-spacing: -0.04em;
+      line-height: 1.15;
+      margin-bottom: 0.75rem;
+      color: var(--text);
+    }
+
+    h1 span {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .subtitle {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 300;
+      letter-spacing: 0.01em;
+    }
+
+    /* Main card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 560px;
+      overflow: hidden;
+    }
+
+    .card-section {
+      padding: 1.75rem 2rem;
+    }
+
+    .card-section + .card-section {
+      border-top: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+    }
+
+    /* Input group */
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="text"],
+    input[type="email"] {
+      font-family: var(--mono);
+      font-size: 0.9rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 0.7rem 1rem;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+
+    input[type="text"]:focus,
+    input[type="email"]:focus {
+      border-color: var(--accent);
+    }
+
+    input::placeholder { color: var(--text-dim); }
+
+    .btn {
+      font-family: var(--sans);
+      font-size: 0.85rem;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius);
+      padding: 0.7rem 1.25rem;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-success {
+      background: var(--success);
+      color: #0d1a12;
+    }
+
+    .btn-success:hover { opacity: 0.88; }
+    .btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Result box */
+    .result-box {
+      display: none;
+      margin-top: 1rem;
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      font-size: 0.88rem;
+    }
+
+    .result-box.available {
+      background: var(--success-dim);
+      border: 1px solid rgba(52,201,122,0.2);
+    }
+
+    .result-box.taken {
+      background: var(--danger-dim);
+      border: 1px solid rgba(247,95,95,0.2);
+    }
+
+    .result-box.error {
+      background: var(--warning-dim);
+      border: 1px solid rgba(247,185,85,0.2);
+    }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 0.3rem;
+      font-weight: 500;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot-green { background: var(--success); }
+    .dot-red { background: var(--danger); }
+    .dot-amber { background: var(--warning); }
+
+    .result-sub {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-left: 16px;
+      font-family: var(--mono);
+    }
+
+    /* Subscribe section */
+    .subscribe-section { display: none; }
+
+    .subscribe-intro {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      line-height: 1.5;
+    }
+
+    .subscribe-intro strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .email-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .subscribe-confirm {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--success);
+      background: var(--success-dim);
+      border: 1px solid rgba(52,201,122,0.2);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      margin-top: 0.75rem;
+    }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Footer */
+    .info-bar {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .info-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+
+    .info-pill svg { opacity: 0.5; }
+
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="9" cy="9" r="7" stroke="white" stroke-width="1.5"/>
+          <path d="M9 2C9 2 11.5 5 11.5 9C11.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
+          <path d="M9 2C9 2 6.5 5 6.5 9C6.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
+          <path d="M2 9H16" stroke="white" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <span class="logo-text">DomainWatch</span>
+    </div>
+    <h1>Surveillance de <span>nom de domaine</span></h1>
+    <p class="subtitle">Vérifiez la disponibilité et soyez alerté dès qu'un domaine se libère</p>
+  </header>
+
+  <div class="card">
+
+    <!-- Section 1 : vérification -->
+    <div class="card-section">
+      <p class="section-label">01 — Vérifier un domaine</p>
+      <div class="input-row">
+        <input
+          type="text"
+          id="domain-input"
+          placeholder="exemple.com"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+        />
+        <button class="btn btn-primary" id="check-btn" onclick="checkDomain()">
+          Vérifier
+        </button>
+      </div>
+
+      <div class="result-box" id="result-box">
+        <div class="result-header">
+          <div class="dot" id="result-dot"></div>
+          <span id="result-title"></span>
+        </div>
+        <div class="result-sub" id="result-sub"></div>
+      </div>
+    </div>
+
+    <!-- Section 2 : alerte e-mail (visible si domaine pris) -->
+    <div class="card-section subscribe-section" id="subscribe-section">
+      <p class="section-label">02 — Recevoir une alerte</p>
+      <p class="subscribe-intro">
+        Le domaine <strong id="domain-label"></strong> est actuellement pris.
+        Entrez votre adresse e-mail pour être alerté <strong>dès qu'il sera disponible</strong>.
+      </p>
+      <div class="email-row">
+        <input
+          type="email"
+          id="email-input"
+          placeholder="vous@exemple.com"
+        />
+        <button class="btn btn-success" id="subscribe-btn" onclick="subscribe()">
+          M'alerter
+        </button>
+      </div>
+      <div class="subscribe-confirm" id="subscribe-confirm">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M3 8l3.5 3.5L13 4.5" stroke="#34c97a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Alerte activée ! Vous recevrez un e-mail dès que ce domaine sera disponible.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="info-bar">
+    <span class="info-pill">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M6.5 3.5v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Vérification toutes les heures
+    </span>
+    <span class="info-pill">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 10L4.5 4.5L8 8.5L10 6L12 10H2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+      WHOIS en temps réel
+    </span>
+    <span class="info-pill">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="3" width="10" height="7.5" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 3V2.5C4 1.67 4.67 1 5.5 1h2C8.33 1 9 1.67 9 2.5V3" stroke="currentColor" stroke-width="1.2"/></svg>
+      Alerte e-mail gratuite
+    </span>
+  </div>
+
+  <footer>
+    DomainWatch v1.0 — propulsé par un cron job WHOIS &amp; Resend
+  </footer>
+
+  <script>
+    const API_BASE = '';  // sera remplacé par l'URL Railway en prod ex: https://ton-app.railway.app
+
+    let currentDomain = '';
+
+    function normalizeDomain(input) {
+      return input.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    }
+
+    function isValidDomain(d) {
+      return /^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(d);
+    }
+
+    async function checkDomain() {
+      const raw = document.getElementById('domain-input').value;
+      const domain = normalizeDomain(raw);
+
+      if (!isValidDomain(domain)) {
+        showResult('error', 'Domaine invalide', 'Ex : exemple.com, monsite.fr');
+        return;
+      }
+
+      currentDomain = domain;
+      const btn = document.getElementById('check-btn');
+      btn.innerHTML = '<span class="spinner"></span>Vérification…';
+      btn.disabled = true;
+
+      document.getElementById('subscribe-section').style.display = 'none';
+      document.getElementById('subscribe-confirm').style.display = 'none';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/check?domain=${encodeURIComponent(domain)}`);
+        const data = await res.json();
+
+        if (data.available) {
+          showResult('available', `${domain} est disponible !`, 'Ce domaine peut être enregistré maintenant.');
+          document.getElementById('subscribe-section').style.display = 'none';
+        } else {
+          showResult('taken', `${domain} est déjà pris`, data.expiry ? `Expiration : ${data.expiry}` : 'Activez une alerte pour être notifié.');
+          document.getElementById('domain-label').textContent = domain;
+          document.getElementById('subscribe-section').style.display = 'block';
+        }
+      } catch (err) {
+        showResult('error', 'Erreur de connexion', 'Le serveur est inaccessible. Vérifiez votre connexion.');
+      }
+
+      btn.innerHTML = 'Vérifier';
+      btn.disabled = false;
+    }
+
+    function showResult(type, title, sub) {
+      const box = document.getElementById('result-box');
+      const dot = document.getElementById('result-dot');
+      const titleEl = document.getElementById('result-title');
+      const subEl = document.getElementById('result-sub');
+
+      box.className = 'result-box ' + type;
+      dot.className = 'dot ' + (type === 'available' ? 'dot-green' : type === 'taken' ? 'dot-red' : 'dot-amber');
+      titleEl.textContent = title;
+      subEl.textContent = sub;
+      box.style.display = 'block';
+    }
+
+    async function subscribe() {
+      const email = document.getElementById('email-input').value.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        document.getElementById('email-input').focus();
+        return;
+      }
+
+      const btn = document.getElementById('subscribe-btn');
+      btn.innerHTML = '<span class="spinner"></span>';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: currentDomain, email })
+        });
+
+        if (res.ok) {
+          document.getElementById('subscribe-confirm').style.display = 'flex';
+          document.getElementById('email-input').value = '';
+        } else {
+          alert('Une erreur est survenue. Veuillez réessayer.');
+        }
+      } catch {
+        alert('Erreur de connexion au serveur.');
+      }
+
+      btn.innerHTML = 'M\'alerter';
+      btn.disabled = false;
+    }
+
+    // Valider avec Entrée
+    document.getElementById('domain-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') checkDomain();
+    });
+
+    document.getElementById('email-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') subscribe();
+    });
+  </script>
+
+</body>
+</html>
