@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DomainWatch — Développeurs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#d97757" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f9f8;
+      --surface: #ffffff;
+      --surface2: #f5f4f0;
+      --border: rgba(0,0,0,0.08);
+      --border-md: rgba(0,0,0,0.13);
+      --text: #1a1a18;
+      --text-muted: #6b6b67;
+      --text-dim: #a8a89f;
+      --accent: #d97757;
+      --accent-hover: #c96644;
+      --accent-dim: rgba(217,119,87,0.10);
+      --success: #1d9e75;
+      --success-dim: rgba(29,158,117,0.10);
+      --success-border: rgba(29,158,117,0.25);
+      --info: #185fa5;
+      --info-dim: rgba(24,95,165,0.10);
+      --info-border: rgba(24,95,165,0.25);
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f0f0e;
+      --surface: #1a1a18;
+      --surface2: #222220;
+      --border: rgba(255,255,255,0.07);
+      --border-md: rgba(255,255,255,0.12);
+      --text: #eceae4;
+      --text-muted: #8a8880;
+      --text-dim: #4a4a46;
+      --accent: #e08060;
+      --accent-hover: #ea9070;
+      --accent-dim: rgba(224,128,96,0.12);
+      --success: #34c97a;
+      --success-dim: rgba(52,201,122,0.10);
+      --success-border: rgba(52,201,122,0.25);
+      --info: #378add;
+      --info-dim: rgba(55,138,221,0.12);
+      --info-border: rgba(55,138,221,0.25);
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+      padding: 3rem 1.5rem 5rem;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .theme-toggle {
+      position: fixed; top: 1.25rem; right: 1.5rem;
+      background: var(--surface); border: 1px solid var(--border-md);
+      border-radius: 20px; padding: 5px 10px;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
+      font-family: var(--sans); box-shadow: var(--shadow);
+      transition: all 0.15s; z-index: 100;
+    }
+    .theme-toggle:hover { color: var(--text); }
+    .theme-toggle svg { width: 14px; height: 14px; }
+
+    /* Header */
+    header { text-align: center; margin-bottom: 3rem; max-width: 640px; }
+
+    .logo {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-bottom: 1.5rem; text-decoration: none;
+    }
+    .logo-icon {
+      width: 34px; height: 34px; background: var(--accent);
+      border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    }
+    .logo-icon svg { width: 17px; height: 17px; }
+    .logo-text { font-family: var(--mono); font-size: 1rem; font-weight: 500; color: var(--text); }
+
+    h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 300; letter-spacing: -0.04em; margin-bottom: 0.6rem; }
+    h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
+
+    .tagline { font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; max-width: 480px; margin: 0 auto 1.5rem; }
+
+    /* Badges */
+    .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+    .badge {
+      font-family: var(--mono); font-size: 0.72rem; font-weight: 500;
+      padding: 4px 10px; border-radius: 20px;
+      border: 1px solid var(--border-md); color: var(--text-muted);
+      background: var(--surface);
+    }
+    .badge-green { background: var(--success-dim); border-color: var(--success-border); color: var(--success); }
+    .badge-blue  { background: var(--info-dim);    border-color: var(--info-border);    color: var(--info); }
+    .badge-orange { background: var(--accent-dim); border-color: rgba(217,119,87,0.25); color: var(--accent); }
+
+    /* CTA buttons */
+    .cta-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    .btn {
+      font-family: var(--sans); font-size: 0.84rem; font-weight: 500;
+      border-radius: var(--radius); padding: 0.65rem 1.25rem;
+      cursor: pointer; transition: all 0.15s; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 7px;
+      border: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-outline { background: var(--surface); border: 1px solid var(--border-md); color: var(--text-muted); }
+    .btn-outline:hover { color: var(--text); border-color: var(--border-md); }
+    .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+    /* Content */
+    .content { width: 100%; max-width: 720px; }
+
+    /* Section */
+    .section { margin-bottom: 2rem; }
+    .section-title {
+      font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 1rem;
+    }
+
+    /* Cards grid */
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+
+    .card-icon {
+      width: 36px; height: 36px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 0.85rem;
+    }
+    .card-icon svg { width: 18px; height: 18px; }
+    .card-icon-orange { background: var(--accent-dim); }
+    .card-icon-green  { background: var(--success-dim); }
+    .card-icon-blue   { background: var(--info-dim); }
+    .card-icon-purple { background: rgba(83,74,183,0.1); }
+
+    .card-title { font-size: 0.88rem; font-weight: 500; margin-bottom: 0.3rem; }
+    .card-desc  { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; }
+
+    /* Stack list */
+    .stack-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+
+    .stack-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 0.75rem 1rem;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.83rem;
+    }
+    .stack-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .stack-name { font-weight: 500; color: var(--text); }
+    .stack-role { font-size: 0.74rem; color: var(--text-dim); margin-left: auto; font-family: var(--mono); }
+
+    /* Code block */
+    .code-wrap {
+      background: #1a1a18; border-radius: var(--radius-lg);
+      overflow: hidden; margin-bottom: 1rem;
+    }
+    .code-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.6rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .code-lang { font-family: var(--mono); font-size: 0.7rem; color: rgba(255,255,255,0.3); }
+    .code-copy {
+      font-family: var(--mono); font-size: 0.7rem; color: rgba(255,255,255,0.3);
+      background: none; border: none; cursor: pointer; padding: 2px 6px;
+      border-radius: 4px; transition: all 0.15s;
+    }
+    .code-copy:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+    .code-body { padding: 1rem 1.25rem; overflow-x: auto; }
+    .code-body pre { font-family: var(--mono); font-size: 0.8rem; color: #e8eaf0; line-height: 1.7; margin: 0; }
+    .c-green  { color: #34c97a; }
+    .c-orange { color: #e08060; }
+    .c-blue   { color: #6ba3f9; }
+    .c-gray   { color: #6b6b67; }
+
+    /* Self-host section */
+    .selfhost {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    .selfhost h3 { font-size: 1rem; font-weight: 500; margin-bottom: 0.4rem; }
+    .selfhost p  { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.55; }
+
+    /* Links row */
+    .links-row {
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+
+    /* Status banner */
+    .status-banner {
+      background: var(--success-dim); border: 1px solid var(--success-border);
+      border-radius: var(--radius); padding: 0.7rem 1rem;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.83rem; color: var(--success); margin-bottom: 1rem;
+      text-decoration: none; transition: opacity 0.15s;
+    }
+    .status-banner:hover { opacity: 0.85; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--success); flex-shrink: 0;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* Divider */
+    hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+    /* Footer */
+    footer {
+      margin-top: 3rem; text-align: center;
+      font-size: 0.74rem; color: var(--text-dim);
+      font-family: var(--mono); line-height: 1.8;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Thème">
+    <svg id="theme-icon" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <header>
+    <a href="/" class="logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="7" stroke="white" stroke-width="1.5"/>
+          <path d="M9 2C9 2 11.5 5 11.5 9C11.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
+          <path d="M9 2C9 2 6.5 5 6.5 9C6.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
+          <path d="M2 9H16" stroke="white" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <span class="logo-text">DomainWatch</span>
+    </a>
+
+    <h1>Pour les <em>développeurs</em></h1>
+    <p class="tagline">API REST gratuite, open source et auto-hébergeable. Intégrez la surveillance de domaines dans vos projets en quelques lignes.</p>
+
+    <div class="badges">
+      <span class="badge badge-green">✓ API gratuite</span>
+      <span class="badge badge-blue">Open Source</span>
+      <span class="badge badge-orange">100 req/jour</span>
+      <span class="badge">Auto-hébergeable</span>
+    </div>
+
+    <div class="cta-row">
+      <a href="/docs.html" class="btn btn-primary">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M3 2h7l3 3v9H3V2Z" stroke="white" stroke-width="1.3" stroke-linejoin="round"/><path d="M10 2v3h3M6 7h4M6 10h4M6 13h2" stroke="white" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Documentation API
+      </a>
+      <a href="https://github.com/Epilouptique/domainwatch" target="_blank" class="btn btn-outline">
+        <svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 0 0-2.056 12.67c.325.06.444-.141.444-.313v-1.094c-1.806.393-2.188-.872-2.188-.872-.295-.75-.72-.95-.72-.95-.589-.402.044-.394.044-.394.651.046.994.669.994.669.579.991 1.519.705 1.889.539.059-.419.226-.705.411-.867-1.441-.164-2.956-.721-2.956-3.206 0-.708.253-1.287.668-1.739-.067-.164-.29-.823.063-1.716 0 0 .545-.174 1.785.665A6.22 6.22 0 0 1 8 5.88c.551.003 1.106.075 1.624.219 1.238-.84 1.782-.665 1.782-.665.354.893.131 1.552.064 1.716.417.452.667 1.031.667 1.739 0 2.492-1.518 3.04-2.963 3.2.233.201.44.597.44 1.203v1.782c0 .174.117.376.447.312A6.5 6.5 0 0 0 8 1.5Z" fill="currentColor"/></svg>
+        GitHub
+      </a>
+      <a href="https://stats.uptimerobot.com/TZd3LdVQWB" target="_blank" class="btn btn-outline">
+        <svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        Statut
+      </a>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- Statut en direct -->
+    <a href="https://stats.uptimerobot.com/TZd3LdVQWB" target="_blank" class="status-banner">
+      <div class="status-dot"></div>
+      Tous les systèmes opérationnels — voir la page de statut
+    </a>
+
+    <!-- Ce que tu peux faire -->
+    <div class="section">
+      <p class="section-title">Ce que vous pouvez faire</p>
+      <div class="cards-grid">
+        <div class="card">
+          <div class="card-icon card-icon-orange">
+            <svg viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke="var(--accent)" stroke-width="1.4"/><path d="M9 5v4l2.5 2" stroke="var(--accent)" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </div>
+          <p class="card-title">Vérifier en temps réel</p>
+          <p class="card-desc">Interrogez le WHOIS de n'importe quel domaine instantanément depuis votre app.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon card-icon-green">
+            <svg viewBox="0 0 18 18" fill="none"><path d="M3 9h12M9 3v12" stroke="var(--success)" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </div>
+          <p class="card-title">Abonner un utilisateur</p>
+          <p class="card-desc">Ajoutez une alerte e-mail pour un domaine depuis votre propre interface.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon card-icon-blue">
+            <svg viewBox="0 0 18 18" fill="none"><rect x="2" y="4" width="14" height="10" rx="2" stroke="var(--info)" stroke-width="1.4"/><path d="M2 7h14" stroke="var(--info)" stroke-width="1.3"/></svg>
+          </div>
+          <p class="card-title">Intégrer partout</p>
+          <p class="card-desc">Bot Discord, script Python, app React, webhook — l'API s'intègre partout.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon card-icon-purple">
+            <svg viewBox="0 0 18 18" fill="none"><path d="M9 2l2.09 4.26L16 7.27l-3.5 3.41.83 4.82L9 13.27l-4.33 2.23.83-4.82L2 7.27l4.91-.71L9 2Z" stroke="#534AB7" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          </div>
+          <p class="card-title">Auto-héberger</p>
+          <p class="card-desc">Clonez le repo, configurez votre propre instance. Zéro dépendance propriétaire.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exemple de code -->
+    <div class="section">
+      <p class="section-title">Exemple rapide</p>
+
+      <div class="code-wrap">
+        <div class="code-header">
+          <span class="code-lang">javascript</span>
+          <button class="code-copy" onclick="copyCode(this)">Copier</button>
+        </div>
+        <div class="code-body">
+          <pre><span class="c-gray">// Vérifier un domaine</span>
+<span class="c-blue">const</span> res = <span class="c-orange">await</span> fetch(
+  <span class="c-green">'https://domainwatch-production-1943.up.railway.app/api/v1/check?domain=exemple.com'</span>,
+  { headers: { <span class="c-green">'Authorization'</span>: <span class="c-green">'Bearer dk_votre_cle'</span> } }
+);
+<span class="c-blue">const</span> data = <span class="c-orange">await</span> res.json();
+
+<span class="c-gray">// { domain: 'exemple.com', available: true, checked_at: '...' }</span>
+console.log(data.available ? <span class="c-green">'Disponible !'</span> : <span class="c-green">'Déjà pris'</span>);</pre>
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header">
+          <span class="code-lang">python</span>
+          <button class="code-copy" onclick="copyCode(this)">Copier</button>
+        </div>
+        <div class="code-body">
+          <pre><span class="c-orange">import</span> requests
+
+res = requests.get(
+    <span class="c-green">'https://domainwatch-production-1943.up.railway.app/api/v1/check'</span>,
+    params={<span class="c-green">'domain'</span>: <span class="c-green">'exemple.com'</span>},
+    headers={<span class="c-green">'Authorization'</span>: <span class="c-green">'Bearer dk_votre_cle'</span>}
+)
+data = res.json()
+<span class="c-orange">print</span>(<span class="c-green">'Disponible'</span> <span class="c-orange">if</span> data[<span class="c-green">'available'</span>] <span class="c-orange">else</span> <span class="c-green">'Pris'</span>)</pre>
+        </div>
+      </div>
+
+      <div class="code-wrap">
+        <div class="code-header">
+          <span class="code-lang">curl</span>
+          <button class="code-copy" onclick="copyCode(this)">Copier</button>
+        </div>
+        <div class="code-body">
+          <pre>curl <span class="c-green">"https://domainwatch-production-1943.up.railway.app/api/v1/check?domain=exemple.com"</span> \
+  -H <span class="c-green">"Authorization: Bearer dk_votre_cle"</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stack technique -->
+    <div class="section">
+      <p class="section-title">Stack technique</p>
+      <div class="stack-grid">
+        <div class="stack-item"><div class="stack-dot" style="background:#f7df1e"></div><span class="stack-name">Node.js</span><span class="stack-role">runtime</span></div>
+        <div class="stack-item"><div class="stack-dot" style="background:#d97757"></div><span class="stack-name">Express</span><span class="stack-role">serveur</span></div>
+        <div class="stack-item"><div class="stack-dot" style="background:#336791"></div><span class="stack-name">PostgreSQL</span><span class="stack-role">base de données</span></div>
+        <div class="stack-item"><div class="stack-dot" style="background:#34c97a"></div><span class="stack-name">Resend</span><span class="stack-role">e-mails</span></div>
+        <div class="stack-item"><div class="stack-dot" style="background:#7b68ee"></div><span class="stack-name">Railway</span><span class="stack-role">hébergement</span></div>
+        <div class="stack-item"><div class="stack-dot" style="background:#ff9900"></div><span class="stack-name">Firebase</span><span class="stack-role">notifications</span></div>
+      </div>
+    </div>
+
+    <!-- Auto-hébergement -->
+    <div class="section">
+      <div class="selfhost">
+        <h3>🚀 Déployez votre propre instance</h3>
+        <p>DomainWatch est entièrement open source. Clonez le repo et déployez votre propre instance en quelques minutes sur Railway, Render, Fly.io ou votre propre VPS.</p>
+        <div class="code-wrap" style="margin-bottom:1rem">
+          <div class="code-header">
+            <span class="code-lang">bash</span>
+            <button class="code-copy" onclick="copyCode(this)">Copier</button>
+          </div>
+          <div class="code-body">
+            <pre>git clone https://github.com/Epilouptique/domainwatch.git
+cd domainwatch
+cp .env.example .env
+<span class="c-gray"># Remplissez .env avec vos variables</span>
+npm install && node server.js</pre>
+          </div>
+        </div>
+        <div class="links-row">
+          <a href="https://github.com/Epilouptique/domainwatch" target="_blank" class="btn btn-outline" style="font-size:0.8rem;padding:0.5rem 1rem">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M8 1.5a6.5 6.5 0 0 0-2.056 12.67c.325.06.444-.141.444-.313v-1.094c-1.806.393-2.188-.872-2.188-.872-.295-.75-.72-.95-.72-.95-.589-.402.044-.394.044-.394.651.046.994.669.994.669.579.991 1.519.705 1.889.539.059-.419.226-.705.411-.867-1.441-.164-2.956-.721-2.956-3.206 0-.708.253-1.287.668-1.739-.067-.164-.29-.823.063-1.716 0 0 .545-.174 1.785.665A6.22 6.22 0 0 1 8 5.88c.551.003 1.106.075 1.624.219 1.238-.84 1.782-.665 1.782-.665.354.893.131 1.552.064 1.716.417.452.667 1.031.667 1.739 0 2.492-1.518 3.04-2.963 3.2.233.201.44.597.44 1.203v1.782c0 .174.117.376.447.312A6.5 6.5 0 0 0 8 1.5Z" fill="currentColor"/></svg>
+            Voir le code source
+          </a>
+          <a href="/docs.html" class="btn btn-outline" style="font-size:0.8rem;padding:0.5rem 1rem">
+            <svg viewBox="0 0 16 16" fill="none" width="14" height="14"><path d="M3 2h7l3 3v9H3V2Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M10 2v3h3M6 7h4M6 10h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Documentation
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <hr/>
+
+    <!-- Obtenir une clé -->
+    <div class="section">
+      <p class="section-title">Obtenir une clé API</p>
+      <p style="font-size:0.88rem;color:var(--text-muted);margin-bottom:1rem">Entrez votre e-mail pour recevoir votre clé API gratuite instantanément.</p>
+
+      <div style="display:flex;gap:8px;max-width:460px">
+        <input type="email" id="key-email" placeholder="vous@exemple.com" style="font-family:var(--mono);font-size:0.875rem;background:var(--surface);border:1px solid var(--border-md);border-radius:var(--radius);color:var(--text);padding:0.65rem 0.9rem;outline:none;width:100%;transition:border-color 0.15s,box-shadow 0.15s" />
+        <button class="btn btn-primary" id="key-btn" onclick="requestApiKey()" style="white-space:nowrap">Recevoir la clé</button>
+      </div>
+      <div id="key-alert" style="display:none;margin-top:0.75rem;border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.83rem"></div>
+    </div>
+
+  </div>
+
+  <footer>
+    DomainWatch v1.0 — Développé par Hugo Vial-Jaime
+    — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
+  </footer>
+
+  <script>
+    const API_BASE = 'https://domainwatch-production-1943.up.railway.app';
+
+    // ─── Thème ────────────────────────────────────────────────────────────────
+    function applyTheme(dark) {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      const icon = document.getElementById('theme-icon');
+      if (dark) {
+        icon.innerHTML = '<path d="M8 3a5 5 0 1 0 5 5 5.5 5.5 0 0 1-5-5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
+      } else {
+        icon.innerHTML = '<circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>';
+      }
+      localStorage.setItem('dw-theme', dark ? 'dark' : 'light');
+    }
+    function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-theme') !== 'dark'); }
+    (function() {
+      const saved = localStorage.getItem('dw-theme');
+      const h = new Date().getHours();
+      applyTheme(saved ? saved === 'dark' : (h >= 20 || h < 7));
+    })();
+
+    // ─── Copier le code ───────────────────────────────────────────────────────
+    function copyCode(btn) {
+      const pre = btn.closest('.code-wrap').querySelector('pre');
+      navigator.clipboard.writeText(pre.innerText).then(() => {
+        btn.textContent = 'Copié !';
+        setTimeout(() => { btn.textContent = 'Copier'; }, 2000);
+      });
+    }
+
+    // ─── Demande de clé API ───────────────────────────────────────────────────
+    async function requestApiKey() {
+      const email = document.getElementById('key-email').value.trim();
+      const alertEl = document.getElementById('key-alert');
+      alertEl.style.display = 'none';
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alertEl.textContent = 'Veuillez entrer une adresse e-mail valide.';
+        alertEl.style.cssText = 'display:block;background:var(--danger-dim);border:1px solid var(--danger-border);color:var(--danger);border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.83rem;margin-top:0.75rem';
+        return;
+      }
+
+      const btn = document.getElementById('key-btn');
+      btn.innerHTML = '<span style="display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,0.25);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:5px"></span>';
+      btn.disabled = true;
+
+      try {
+        const res  = await fetch(`${API_BASE}/api/developer/register`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alertEl.textContent = '✓ Votre clé API a été envoyée par e-mail !';
+          alertEl.style.cssText = 'display:block;background:var(--success-dim);border:1px solid var(--success-border);color:var(--success);border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.83rem;margin-top:0.75rem';
+          document.getElementById('key-email').value = '';
+        } else {
+          alertEl.textContent = data.error || 'Une erreur est survenue.';
+          alertEl.style.cssText = 'display:block;background:var(--danger-dim);border:1px solid var(--danger-border);color:var(--danger);border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.83rem;margin-top:0.75rem';
+        }
+      } catch {
+        alertEl.textContent = 'Impossible de contacter le serveur.';
+        alertEl.style.cssText = 'display:block;background:var(--danger-dim);border:1px solid var(--danger-border);color:var(--danger);border-radius:var(--radius);padding:0.75rem 1rem;font-size:0.83rem;margin-top:0.75rem';
+      }
+
+      btn.innerHTML = 'Recevoir la clé';
+      btn.disabled = false;
+    }
+
+    document.getElementById('key-email').addEventListener('keydown', e => { if (e.key === 'Enter') requestApiKey(); });
+  </script>
+
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+    input:focus { border-color: var(--accent) !important; box-shadow: 0 0 0 3px var(--accent-dim) !important; }
+  </style>
+
+</body>
+</html>
