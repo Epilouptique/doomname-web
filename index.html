@@ -6,6 +6,12 @@
   <title>DomainWatch — Surveillance de domaines</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#d97757" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="DomainWatch" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -351,6 +357,10 @@
   </div>
 
   <div style="text-align:center;margin-top:1.25rem">
+    <button id="install-btn" onclick="installPWA()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M1 9.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Installer l'app
+    </button>
     <a href="/manage.html" style="font-size:0.84rem;color:var(--accent);text-decoration:none;font-family:var(--sans);font-weight:500;">
       Gérer mes alertes →
     </a>
@@ -471,6 +481,67 @@
 
     document.getElementById('domain-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkDomain(); });
     document.getElementById('email-input').addEventListener('keydown', e => { if (e.key === 'Enter') subscribe(); });
+  </script>
+
+  <!-- Firebase PWA -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
+  <script>
+    // ─── Firebase + PWA ───────────────────────────────────────────────────────
+    const VAPID_KEY = 'BEaQwxYXG5SRbgdljIT0lZIP76HwwXTwvm8TidIQ9H9v-k1FI_Z0edf-c8ihozUQp3YFGqGzOPXxQ9OT-tbtYZI';
+
+    firebase.initializeApp({
+      apiKey:            "AIzaSyDRpPdZvAwL9LGFvgXZzsthJZL-7vwO5e4",
+      authDomain:        "domainwatch-7da80.firebaseapp.com",
+      projectId:         "domainwatch-7da80",
+      storageBucket:     "domainwatch-7da80.firebasestorage.app",
+      messagingSenderId: "427491746475",
+      appId:             "1:427491746475:web:391c2d064a6cb024c94dee"
+    });
+
+    const messaging = firebase.messaging();
+
+    // Enregistre le service worker
+    async function initPWA() {
+      if (!('serviceWorker' in navigator)) return;
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        console.log('✅ Service Worker enregistré');
+
+        // Demande la permission de notifications
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+          if (token) {
+            console.log('🔔 Token FCM:', token);
+            // Envoie le token au serveur pour le lier à l'email si l'utilisateur s'abonne
+            localStorage.setItem('dw-fcm-token', token);
+          }
+        }
+      } catch (err) {
+        console.warn('PWA init:', err.message);
+      }
+    }
+
+    // Lance la PWA après le chargement
+    window.addEventListener('load', initPWA);
+
+    // Bouton d'installation PWA
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      document.getElementById('install-btn').style.display = 'inline-flex';
+    });
+
+    function installPWA() {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(() => {
+        deferredPrompt = null;
+        document.getElementById('install-btn').style.display = 'none';
+      });
+    }
   </script>
 
 </body>
