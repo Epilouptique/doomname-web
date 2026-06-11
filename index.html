@@ -5,32 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DomainWatch — Surveillance de domaines</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #0d0f14;
-      --surface: #13161e;
-      --surface2: #1a1e29;
-      --border: rgba(255,255,255,0.07);
-      --border-hover: rgba(255,255,255,0.14);
-      --text: #e8eaf0;
-      --text-muted: #6b7080;
-      --text-dim: #3d4255;
-      --accent: #4f8ef7;
-      --accent-dim: rgba(79,142,247,0.12);
-      --accent-hover: #6ba3f9;
-      --success: #34c97a;
-      --success-dim: rgba(52,201,122,0.1);
-      --danger: #f75f5f;
-      --danger-dim: rgba(247,95,95,0.1);
-      --warning: #f7b955;
-      --warning-dim: rgba(247,185,85,0.1);
-      --mono: 'DM Mono', monospace;
-      --sans: 'DM Sans', sans-serif;
+      --bg: #f9f9f8;
+      --surface: #ffffff;
+      --surface2: #f5f4f0;
+      --border: rgba(0,0,0,0.08);
+      --border-md: rgba(0,0,0,0.13);
+      --text: #1a1a18;
+      --text-muted: #6b6b67;
+      --text-dim: #a8a89f;
+      --accent: #d97757;
+      --accent-hover: #c96644;
+      --accent-dim: rgba(217,119,87,0.10);
+      --success: #1d9e75;
+      --success-dim: rgba(29,158,117,0.10);
+      --success-border: rgba(29,158,117,0.25);
+      --danger: #e24b4a;
+      --danger-dim: rgba(226,75,74,0.10);
+      --danger-border: rgba(226,75,74,0.25);
+      --warning: #ba7517;
+      --warning-dim: rgba(186,117,23,0.10);
+      --warning-border: rgba(186,117,23,0.25);
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
       --radius: 10px;
-      --radius-lg: 16px;
+      --radius-lg: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f0f0e;
+      --surface: #1a1a18;
+      --surface2: #222220;
+      --border: rgba(255,255,255,0.07);
+      --border-md: rgba(255,255,255,0.12);
+      --text: #eceae4;
+      --text-muted: #8a8880;
+      --text-dim: #4a4a46;
+      --accent: #e08060;
+      --accent-hover: #ea9070;
+      --accent-dim: rgba(224,128,96,0.12);
+      --success: #34c97a;
+      --success-dim: rgba(52,201,122,0.10);
+      --success-border: rgba(52,201,122,0.25);
+      --danger: #f26b6a;
+      --danger-dim: rgba(242,107,106,0.10);
+      --danger-border: rgba(242,107,106,0.25);
+      --warning: #ef9f27;
+      --warning-dim: rgba(239,159,39,0.10);
+      --warning-border: rgba(239,159,39,0.25);
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
     }
 
     body {
@@ -42,273 +70,216 @@
       flex-direction: column;
       align-items: center;
       padding: 3rem 1.5rem 5rem;
+      transition: background 0.2s, color 0.2s;
     }
+
+    /* Theme switch */
+    .theme-toggle {
+      position: fixed;
+      top: 1.25rem; right: 1.5rem;
+      background: var(--surface);
+      border: 1px solid var(--border-md);
+      border-radius: 20px;
+      padding: 5px 10px;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--sans);
+      box-shadow: var(--shadow);
+      transition: all 0.15s;
+      z-index: 100;
+    }
+    .theme-toggle:hover { border-color: var(--border-md); color: var(--text); }
+    .theme-toggle svg { width: 14px; height: 14px; flex-shrink: 0; }
 
     /* Header */
-    header {
-      text-align: center;
-      margin-bottom: 3.5rem;
-    }
+    header { text-align: center; margin-bottom: 3rem; }
 
     .logo {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
+      display: inline-flex; align-items: center; gap: 10px;
       margin-bottom: 1.5rem;
     }
 
     .logo-icon {
-      width: 36px;
-      height: 36px;
+      width: 34px; height: 34px;
       background: var(--accent);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
     }
-
-    .logo-icon svg { width: 18px; height: 18px; }
+    .logo-icon svg { width: 17px; height: 17px; }
 
     .logo-text {
       font-family: var(--mono);
-      font-size: 1.1rem;
-      font-weight: 500;
-      letter-spacing: -0.02em;
+      font-size: 1rem; font-weight: 500;
+      letter-spacing: -0.01em;
       color: var(--text);
     }
 
     h1 {
-      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
       font-weight: 300;
       letter-spacing: -0.04em;
-      line-height: 1.15;
-      margin-bottom: 0.75rem;
+      line-height: 1.2;
+      margin-bottom: 0.6rem;
       color: var(--text);
     }
 
-    h1 span {
-      color: var(--accent);
-      font-weight: 500;
-    }
+    h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
 
     .subtitle {
-      font-size: 0.95rem;
+      font-size: 0.9rem;
       color: var(--text-muted);
-      font-weight: 300;
-      letter-spacing: 0.01em;
+      font-weight: 400;
+      max-width: 380px;
+      margin: 0 auto;
+      line-height: 1.55;
     }
 
-    /* Main card */
+    /* Card */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      width: 100%;
-      max-width: 560px;
+      width: 100%; max-width: 520px;
+      box-shadow: var(--shadow);
       overflow: hidden;
     }
 
-    .card-section {
-      padding: 1.75rem 2rem;
-    }
+    .card-section { padding: 1.5rem 1.75rem; }
+    .card-section + .card-section { border-top: 1px solid var(--border); }
 
-    .card-section + .card-section {
-      border-top: 1px solid var(--border);
-    }
-
-    .section-label {
+    .section-tag {
+      display: inline-block;
       font-family: var(--mono);
-      font-size: 0.7rem;
-      font-weight: 500;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      font-size: 0.67rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
       color: var(--text-dim);
-      margin-bottom: 1rem;
+      margin-bottom: 0.9rem;
     }
 
-    /* Input group */
-    .input-row {
-      display: flex;
-      gap: 8px;
-    }
+    /* Input */
+    .input-row { display: flex; gap: 7px; }
 
-    input[type="text"],
-    input[type="email"] {
+    input[type="text"], input[type="email"] {
       font-family: var(--mono);
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       background: var(--surface2);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-md);
       border-radius: var(--radius);
       color: var(--text);
-      padding: 0.7rem 1rem;
+      padding: 0.65rem 0.9rem;
       outline: none;
-      transition: border-color 0.15s;
       width: 100%;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-
-    input[type="text"]:focus,
-    input[type="email"]:focus {
+    input:focus {
       border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
     }
-
     input::placeholder { color: var(--text-dim); }
 
+    /* Buttons */
     .btn {
-      font-family: var(--sans);
-      font-size: 0.85rem;
-      font-weight: 500;
-      border: none;
-      border-radius: var(--radius);
-      padding: 0.7rem 1.25rem;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
+      font-family: var(--sans); font-size: 0.84rem; font-weight: 500;
+      border: none; border-radius: var(--radius);
+      padding: 0.65rem 1.1rem;
+      cursor: pointer; transition: all 0.15s;
       white-space: nowrap;
     }
+    .btn:active { transform: scale(0.98); }
 
-    .btn-primary {
-      background: var(--accent);
-      color: #fff;
-    }
-
+    .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { background: var(--accent-hover); }
-    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
-    .btn-success {
-      background: var(--success);
-      color: #0d1a12;
-    }
-
+    .btn-success { background: var(--success); color: #fff; }
     .btn-success:hover { opacity: 0.88; }
-    .btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-success:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
-    /* Result box */
+    /* Spinner */
+    .spinner {
+      display: inline-block; width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 5px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result */
     .result-box {
-      display: none;
-      margin-top: 1rem;
-      border-radius: var(--radius);
-      padding: 1rem 1.25rem;
-      font-size: 0.88rem;
+      display: none; margin-top: 0.85rem;
+      border-radius: var(--radius); padding: 0.85rem 1rem;
+      font-size: 0.85rem; line-height: 1.5;
     }
-
-    .result-box.available {
-      background: var(--success-dim);
-      border: 1px solid rgba(52,201,122,0.2);
-    }
-
-    .result-box.taken {
-      background: var(--danger-dim);
-      border: 1px solid rgba(247,95,95,0.2);
-    }
-
-    .result-box.error {
-      background: var(--warning-dim);
-      border: 1px solid rgba(247,185,85,0.2);
-    }
+    .result-box.available { background: var(--success-dim); border: 1px solid var(--success-border); }
+    .result-box.taken     { background: var(--danger-dim);  border: 1px solid var(--danger-border); }
+    .result-box.error     { background: var(--warning-dim); border: 1px solid var(--warning-border); }
 
     .result-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 0.3rem;
-      font-weight: 500;
+      display: flex; align-items: center; gap: 7px;
+      font-weight: 500; margin-bottom: 2px;
     }
+    .result-header.available { color: var(--success); }
+    .result-header.taken     { color: var(--danger); }
+    .result-header.error     { color: var(--warning); }
 
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green  { background: var(--success); }
+    .dot-red    { background: var(--danger); }
+    .dot-amber  { background: var(--warning); }
 
-    .dot-green { background: var(--success); }
-    .dot-red { background: var(--danger); }
-    .dot-amber { background: var(--warning); }
-
-    .result-sub {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-left: 16px;
-      font-family: var(--mono);
-    }
+    .result-sub { font-size: 0.8rem; color: var(--text-muted); margin-left: 14px; font-family: var(--mono); }
 
     /* Subscribe section */
     .subscribe-section { display: none; }
 
     .subscribe-intro {
-      font-size: 0.88rem;
-      color: var(--text-muted);
-      margin-bottom: 1rem;
-      line-height: 1.5;
+      font-size: 0.875rem; color: var(--text-muted);
+      margin-bottom: 0.9rem; line-height: 1.55;
     }
-
-    .subscribe-intro strong {
-      color: var(--text);
-      font-weight: 500;
-    }
-
-    .email-row {
-      display: flex;
-      gap: 8px;
-    }
+    .subscribe-intro strong { color: var(--text); font-weight: 500; }
 
     .subscribe-confirm {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.85rem;
-      color: var(--success);
+      display: none; align-items: center; gap: 7px;
+      font-size: 0.83rem; color: var(--success);
       background: var(--success-dim);
-      border: 1px solid rgba(52,201,122,0.2);
+      border: 1px solid var(--success-border);
       border-radius: var(--radius);
-      padding: 0.75rem 1rem;
-      margin-top: 0.75rem;
+      padding: 0.7rem 0.9rem; margin-top: 0.7rem;
     }
 
-    /* Loading spinner */
-    .spinner {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(255,255,255,0.2);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 6px;
+    /* Info bar */
+    .info-bar {
+      margin-top: 1.25rem;
+      display: flex; gap: 1.25rem;
+      justify-content: center; flex-wrap: wrap;
     }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .info-pill {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 0.76rem; color: var(--text-dim);
+      font-family: var(--mono);
+    }
+    .info-pill svg { opacity: 0.4; }
 
     /* Footer */
-    .info-bar {
-      margin-top: 1.5rem;
-      display: flex;
-      gap: 1.5rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .info-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.78rem;
-      color: var(--text-dim);
-      font-family: var(--mono);
-    }
-
-    .info-pill svg { opacity: 0.5; }
-
     footer {
-      margin-top: 3rem;
-      text-align: center;
-      font-size: 0.75rem;
-      color: var(--text-dim);
-      font-family: var(--mono);
+      margin-top: 2.5rem; text-align: center;
+      font-size: 0.74rem; color: var(--text-dim);
+      font-family: var(--mono); line-height: 1.8;
     }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
+
+  <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" aria-label="Basculer le thème">
+    <svg id="theme-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+  </button>
 
   <header>
     <div class="logo">
@@ -322,32 +293,21 @@
       </div>
       <span class="logo-text">DomainWatch</span>
     </div>
-    <h1>Surveillance de <span>nom de domaine</span></h1>
+    <h1>Surveillance de <em>nom de domaine</em></h1>
     <p class="subtitle">Vérifiez la disponibilité et soyez alerté dès qu'un domaine se libère</p>
   </header>
 
   <div class="card">
 
-    <!-- Section 1 : vérification -->
     <div class="card-section">
-      <p class="section-label">01 — Vérifier un domaine</p>
+      <span class="section-tag">Vérifier un domaine</span>
       <div class="input-row">
-        <input
-          type="text"
-          id="domain-input"
-          placeholder="exemple.com"
-          autocomplete="off"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-        />
-        <button class="btn btn-primary" id="check-btn" onclick="checkDomain()">
-          Vérifier
-        </button>
+        <input type="text" id="domain-input" placeholder="exemple.com"
+          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+        <button class="btn btn-primary" id="check-btn" onclick="checkDomain()">Vérifier</button>
       </div>
-
       <div class="result-box" id="result-box">
-        <div class="result-header">
+        <div class="result-header" id="result-header">
           <div class="dot" id="result-dot"></div>
           <span id="result-title"></span>
         </div>
@@ -355,28 +315,21 @@
       </div>
     </div>
 
-    <!-- Section 2 : alerte e-mail (visible si domaine pris) -->
     <div class="card-section subscribe-section" id="subscribe-section">
-      <p class="section-label">02 — Recevoir une alerte</p>
+      <span class="section-tag">Recevoir une alerte</span>
       <p class="subscribe-intro">
-        Le domaine <strong id="domain-label"></strong> est actuellement pris.
-        Entrez votre adresse e-mail pour être alerté <strong>dès qu'il sera disponible</strong>.
+        <strong id="domain-label"></strong> est actuellement pris.
+        Entrez votre e-mail pour être alerté dès qu'il sera disponible.
       </p>
-      <div class="email-row">
-        <input
-          type="email"
-          id="email-input"
-          placeholder="vous@exemple.com"
-        />
-        <button class="btn btn-success" id="subscribe-btn" onclick="subscribe()">
-          M'alerter
-        </button>
+      <div class="input-row">
+        <input type="email" id="email-input" placeholder="vous@exemple.com" />
+        <button class="btn btn-success" id="subscribe-btn" onclick="subscribe()">M'alerter</button>
       </div>
       <div class="subscribe-confirm" id="subscribe-confirm">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M3 8l3.5 3.5L13 4.5" stroke="#34c97a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+          <path d="M2.5 7.5l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        Alerte activée ! Vous recevrez un e-mail dès que ce domaine sera disponible.
+        Alerte activée — vous serez notifié dès que ce domaine sera libre.
       </div>
     </div>
 
@@ -384,35 +337,74 @@
 
   <div class="info-bar">
     <span class="info-pill">
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.2"/><path d="M6.5 3.5v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      Vérification toutes les heures
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      Vérifié toutes les heures
     </span>
     <span class="info-pill">
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 10L4.5 4.5L8 8.5L10 6L12 10H2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-      WHOIS en temps réel
-    </span>
-    <span class="info-pill">
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="3" width="10" height="7.5" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 3V2.5C4 1.67 4.67 1 5.5 1h2C8.33 1 9 1.67 9 2.5V3" stroke="currentColor" stroke-width="1.2"/></svg>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="2.5" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 2.5V2a1.5 1.5 0 0 1 4 0v.5" stroke="currentColor" stroke-width="1.2"/></svg>
       Alerte e-mail gratuite
+    </span>
+    <span class="info-pill">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 9l3-5 3 4 2-2.5 2 3.5H1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+      WHOIS en temps réel
     </span>
   </div>
 
+  <div style="text-align:center;margin-top:1.25rem">
+    <a href="/manage.html" style="font-size:0.84rem;color:var(--accent);text-decoration:none;font-family:var(--sans);font-weight:500;">
+      Gérer mes alertes →
+    </a>
+  </div>
+
   <footer>
-  <a href="/manage.html" style="color:var(--accent);text-decoration:none;font-family:var(--mono);font-size:0.75rem;">
-    Gérer mes alertes
-  </a>
-  <span style="color:var(--text-dim);font-family:var(--mono);font-size:0.75rem;display:block;margin-top:0.5rem;">
-    DomainWatch v1.0 — Développé par Hugo Vial-Jaime - Agence <a href="https://dahu-concept.fr" style="color:var(--accent);text-decoration:none;" target="_blank">Dahu-Concept</a>
-  </span>
-</footer>
+    DomainWatch v1.0 — Développé par Hugo Vial-Jaime
+    — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
+  </footer>
 
   <script>
-    const API_BASE = 'https://domainwatch-production-1943.up.railway.app';  // sera remplacé par l'URL à terme.
+    const API_BASE = 'https://domainwatch-production-1943.up.railway.app';
 
+    // ─── Thème ────────────────────────────────────────────────────────────────
+    const DARK_HOUR_START = 20;
+    const DARK_HOUR_END   = 7;
+
+    function isDarkHour() {
+      const h = new Date().getHours();
+      return h >= DARK_HOUR_START || h < DARK_HOUR_END;
+    }
+
+    function applyTheme(dark) {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      updateThemeIcon(dark);
+      localStorage.setItem('dw-theme', dark ? 'dark' : 'light');
+    }
+
+    function updateThemeIcon(dark) {
+      const icon = document.getElementById('theme-icon');
+      if (dark) {
+        icon.innerHTML = '<path d="M8 3a5 5 0 1 0 5 5 5.5 5.5 0 0 1-5-5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
+      } else {
+        icon.innerHTML = '<circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>';
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      applyTheme(!isDark);
+    }
+
+    // Init thème
+    (function() {
+      const saved = localStorage.getItem('dw-theme');
+      if (saved) { applyTheme(saved === 'dark'); }
+      else { applyTheme(isDarkHour()); }
+    })();
+
+    // ─── WHOIS ────────────────────────────────────────────────────────────────
     let currentDomain = '';
 
-    function normalizeDomain(input) {
-      return input.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
+    function normalizeDomain(v) {
+      return v.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '');
     }
 
     function isValidDomain(d) {
@@ -420,95 +412,65 @@
     }
 
     async function checkDomain() {
-      const raw = document.getElementById('domain-input').value;
-      const domain = normalizeDomain(raw);
-
-      if (!isValidDomain(domain)) {
-        showResult('error', 'Domaine invalide', 'Ex : exemple.com, monsite.fr');
-        return;
-      }
+      const domain = normalizeDomain(document.getElementById('domain-input').value);
+      if (!isValidDomain(domain)) { showResult('error', 'Domaine invalide', 'Ex : exemple.com, monsite.fr'); return; }
 
       currentDomain = domain;
       const btn = document.getElementById('check-btn');
-      btn.innerHTML = '<span class="spinner"></span>Vérification…';
-      btn.disabled = true;
-
+      btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
       document.getElementById('subscribe-section').style.display = 'none';
       document.getElementById('subscribe-confirm').style.display = 'none';
 
       try {
-        const res = await fetch(`${API_BASE}/api/check?domain=${encodeURIComponent(domain)}`);
+        const res  = await fetch(`${API_BASE}/api/check?domain=${encodeURIComponent(domain)}`);
         const data = await res.json();
-
         if (data.available) {
           showResult('available', `${domain} est disponible !`, 'Ce domaine peut être enregistré maintenant.');
-          document.getElementById('subscribe-section').style.display = 'none';
         } else {
           showResult('taken', `${domain} est déjà pris`, data.expiry ? `Expiration : ${data.expiry}` : 'Activez une alerte pour être notifié.');
           document.getElementById('domain-label').textContent = domain;
           document.getElementById('subscribe-section').style.display = 'block';
         }
-      } catch (err) {
-        showResult('error', 'Erreur de connexion', 'Le serveur est inaccessible. Vérifiez votre connexion.');
-      }
+      } catch { showResult('error', 'Erreur de connexion', 'Le serveur est inaccessible.'); }
 
-      btn.innerHTML = 'Vérifier';
-      btn.disabled = false;
+      btn.innerHTML = 'Vérifier'; btn.disabled = false;
     }
 
     function showResult(type, title, sub) {
-      const box = document.getElementById('result-box');
-      const dot = document.getElementById('result-dot');
-      const titleEl = document.getElementById('result-title');
-      const subEl = document.getElementById('result-sub');
-
+      const box  = document.getElementById('result-box');
+      const dot  = document.getElementById('result-dot');
+      const hdr  = document.getElementById('result-header');
       box.className = 'result-box ' + type;
       dot.className = 'dot ' + (type === 'available' ? 'dot-green' : type === 'taken' ? 'dot-red' : 'dot-amber');
-      titleEl.textContent = title;
-      subEl.textContent = sub;
+      hdr.className = 'result-header ' + type;
+      document.getElementById('result-title').textContent = title;
+      document.getElementById('result-sub').textContent   = sub;
       box.style.display = 'block';
     }
 
     async function subscribe() {
       const email = document.getElementById('email-input').value.trim();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        document.getElementById('email-input').focus();
-        return;
-      }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { document.getElementById('email-input').focus(); return; }
 
       const btn = document.getElementById('subscribe-btn');
-      btn.innerHTML = '<span class="spinner"></span>';
-      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
 
       try {
         const res = await fetch(`${API_BASE}/api/subscribe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ domain: currentDomain, email })
         });
-
         if (res.ok) {
           document.getElementById('subscribe-confirm').style.display = 'flex';
           document.getElementById('email-input').value = '';
-        } else {
-          alert('Une erreur est survenue. Veuillez réessayer.');
-        }
-      } catch {
-        alert('Erreur de connexion au serveur.');
-      }
+        } else { alert('Une erreur est survenue. Veuillez réessayer.'); }
+      } catch { alert('Erreur de connexion au serveur.'); }
 
-      btn.innerHTML = 'M\'alerter';
-      btn.disabled = false;
+      btn.innerHTML = "M'alerter"; btn.disabled = false;
     }
 
-    // Valider avec Entrée
-    document.getElementById('domain-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') checkDomain();
-    });
-
-    document.getElementById('email-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') subscribe();
-    });
+    document.getElementById('domain-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkDomain(); });
+    document.getElementById('email-input').addEventListener('keydown', e => { if (e.key === 'Enter') subscribe(); });
   </script>
 
 </body>

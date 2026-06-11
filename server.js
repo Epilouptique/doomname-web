@@ -286,28 +286,62 @@ app.get('/api/manage/subscriptions', async (req, res) => {
   }
 });
 
-// DELETE /api/manage/subscription/:id — annule un abonnement
+// PATCH /api/manage/subscription/:id/toggle — active ou désactive la surveillance
+app.patch('/api/manage/subscription/:id/toggle', async (req, res) => {
+  const { id }    = req.params;
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+
+  try {
+    // Vérifie la limite de 50 actifs avant de réactiver
+    const { rows: sub } = await db.query(
+      'SELECT active FROM subscriptions WHERE id = $1 AND email = $2',
+      [id, email.toLowerCase()]
+    );
+    if (sub.length === 0) return res.status(404).json({ error: 'Abonnement introuvable' });
+
+    // Si on veut réactiver, vérifier la limite
+    if (!sub[0].active) {
+      const { rows: countRows } = await db.query(
+        'SELECT COUNT(*) FROM subscriptions WHERE email = $1 AND active = TRUE',
+        [email.toLowerCase()]
+      );
+      if (parseInt(countRows[0].count) >= 50) {
+        return res.status(400).json({ error: 'Limite de 50 surveillances actives atteinte' });
+      }
+    }
+
+    const result = await db.query(`
+      UPDATE subscriptions SET active = NOT active
+      WHERE id = $1 AND email = $2
+      RETURNING active
+    `, [id, email.toLowerCase()]);
+
+    return res.json({ success: true, active: result.rows[0].active });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/manage/subscription/:id — supprime définitivement un abonnement
 app.delete('/api/manage/subscription/:id', async (req, res) => {
   const { id }    = req.params;
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
 
   try {
-    const result = await db.query(`
-      UPDATE subscriptions SET active = FALSE
-      WHERE id = $1 AND email = $2
-    `, [id, email.toLowerCase()]);
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Abonnement introuvable' });
-    }
+    const result = await db.query(
+      'DELETE FROM subscriptions WHERE id = $1 AND email = $2',
+      [id, email.toLowerCase()]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Abonnement introuvable' });
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// POST /api/manage/subscribe — ajoute un domaine (limite 50)
+// POST /api/manage/subscribe — ajoute un domaine (limite 50 actifs, 200 total)
 app.post('/api/manage/subscribe', async (req, res) => {
   const { email, domain } = req.body;
 
@@ -320,13 +354,32 @@ app.post('/api/manage/subscribe', async (req, res) => {
 
   try {
     // Vérifie la limite de 50 domaines actifs
-    const { rows: countRows } = await db.query(`
-      SELECT COUNT(*) FROM subscriptions
-      WHERE email = $1 AND active = TRUE
-    `, [email.toLowerCase()]);
+    const { rows: activeRows } = await db.query(
+      'SELECT COUNT(*) FROM subscriptions WHERE email = $1 AND active = TRUE',
+      [email.toLowerCase()]
+    );
+    if (parseInt(activeRows[0].count) >= 50) {
+      return res.status(400).json({ error: 'Limite de 50 surveillances actives atteinte' });
+    }
 
-    if (parseInt(countRows[0].count) >= 50) {
-      return res.status(400).json({ error: 'Limite de 50 domaines atteinte' });
+    // Vérifie la limite de 200 domaines au total
+    const { rows: totalRows } = await db.query(
+      'SELECT COUNT(*) FROM subscriptions WHERE email = $1',
+      [email.toLowerCase()]
+    );
+    if (parseInt(totalRows[0].count) >= 200) {
+      return res.status(400).json({ error: 'Limite de 200 domaines atteinte — supprimez des entrées pour en ajouter de nouvelles' });
+    }
+
+    // Vérifie si le domaine est déjà disponible via WHOIS
+    const whoisData = await whois(domain);
+    const { available } = parseDomainAvailability(whoisData);
+    if (available) {
+      return res.status(400).json({
+        error: 'Ce domaine est déjà disponible',
+        available: true,
+        registrar_url: `https://www.namecheap.com/domains/registration/results/?domain=${domain}`
+      });
     }
 
     await db.query(`
@@ -339,6 +392,7 @@ app.post('/api/manage/subscribe', async (req, res) => {
     console.log(`📬 Ajout depuis manage : ${email} surveille ${domain}`);
     return res.json({ success: true });
   } catch (err) {
+    console.error('Erreur manage/subscribe:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
