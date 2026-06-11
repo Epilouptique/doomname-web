@@ -3,6 +3,7 @@ require('dotenv').config();
 const express    = require('express');
 const cors       = require('cors');
 const path       = require('path');
+const crypto     = require('crypto');
 const whois      = require('whois-json');
 const cron       = require('node-cron');
 const { Pool }   = require('pg');
@@ -24,7 +25,7 @@ const db = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Crée la table si elle n'existe pas encore
+// Crée les tables si elles n'existent pas encore
 async function initDB() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS subscriptions (
@@ -36,6 +37,16 @@ async function initDB() {
       UNIQUE(domain, email)
     )
   `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS magic_links (
+      id         SERIAL PRIMARY KEY,
+      email      VARCHAR(255) NOT NULL,
+      token      VARCHAR(255) NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used       BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
   console.log('✅ Base de données prête');
 }
 
@@ -44,7 +55,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function sendAlertEmail(email, domain) {
   await resend.emails.send({
-    from: process.env.EMAIL_FROM,      // ex: alertes@tondomaine.com
+    from: process.env.EMAIL_FROM,
     to:   email,
     subject: `🟢 ${domain} est maintenant disponible !`,
     html: `
@@ -63,6 +74,31 @@ async function sendAlertEmail(email, domain) {
         <p style="color:#999;font-size:0.8rem;margin-top:2rem">
           Vous recevez cet e-mail car vous avez activé une alerte sur DomainWatch.<br/>
           Votre alerte a été désactivée automatiquement.
+        </p>
+      </div>
+    `
+  });
+}
+
+async function sendMagicLinkEmail(email, token) {
+  const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+  const link = `${APP_URL}/manage.html?token=${token}`;
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM,
+    to:   email,
+    subject: '🔑 Votre lien de connexion DomainWatch',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
+        <h2 style="color:#4f8ef7">Connexion à DomainWatch</h2>
+        <p>Cliquez sur le bouton ci-dessous pour accéder à vos abonnements.</p>
+        <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>15 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
+        <a href="${link}"
+           style="display:inline-block;background:#4f8ef7;color:white;padding:0.75rem 1.5rem;
+                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
+          Accéder à mes abonnements →
+        </a>
+        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+          Si vous n'avez pas demandé ce lien, ignorez cet e-mail.
         </p>
       </div>
     `
@@ -178,6 +214,135 @@ app.get('/api/subscriptions', async (req, res) => {
   res.json(rows);
 });
 
+// ─── Routes Magic Link ─────────────────────────────────────────────────────────
+
+// POST /api/auth/request — demande un magic link
+app.post('/api/auth/request', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Adresse e-mail invalide' });
+  }
+
+  const token    = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+  try {
+    await db.query(`
+      INSERT INTO magic_links (email, token, expires_at)
+      VALUES ($1, $2, $3)
+    `, [email.toLowerCase(), token, expiresAt]);
+
+    await sendMagicLinkEmail(email.toLowerCase(), token);
+    console.log(`🔑 Magic link envoyé à ${email}`);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur magic link:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/auth/verify?token=xxx — vérifie le token et retourne l'e-mail
+app.get('/api/auth/verify', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ error: 'Token manquant' });
+
+  try {
+    const { rows } = await db.query(`
+      SELECT * FROM magic_links
+      WHERE token = $1 AND used = FALSE AND expires_at > NOW()
+    `, [token]);
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Lien invalide ou expiré' });
+    }
+
+    // Marque le token comme utilisé
+    await db.query('UPDATE magic_links SET used = TRUE WHERE token = $1', [token]);
+
+    return res.json({ success: true, email: rows[0].email });
+  } catch (err) {
+    console.error('Erreur verify token:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── Routes de gestion des abonnements ────────────────────────────────────────
+
+// GET /api/manage/subscriptions?email=xxx — liste les abonnements
+app.get('/api/manage/subscriptions', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+
+  try {
+    const { rows } = await db.query(`
+      SELECT id, domain, active, created_at
+      FROM subscriptions
+      WHERE email = $1
+      ORDER BY created_at DESC
+    `, [email.toLowerCase()]);
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/manage/subscription/:id — annule un abonnement
+app.delete('/api/manage/subscription/:id', async (req, res) => {
+  const { id }    = req.params;
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+
+  try {
+    const result = await db.query(`
+      UPDATE subscriptions SET active = FALSE
+      WHERE id = $1 AND email = $2
+    `, [id, email.toLowerCase()]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Abonnement introuvable' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// POST /api/manage/subscribe — ajoute un domaine (limite 50)
+app.post('/api/manage/subscribe', async (req, res) => {
+  const { email, domain } = req.body;
+
+  if (!email || !domain) {
+    return res.status(400).json({ error: 'E-mail et domaine requis' });
+  }
+  if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) {
+    return res.status(400).json({ error: 'Nom de domaine invalide' });
+  }
+
+  try {
+    // Vérifie la limite de 50 domaines actifs
+    const { rows: countRows } = await db.query(`
+      SELECT COUNT(*) FROM subscriptions
+      WHERE email = $1 AND active = TRUE
+    `, [email.toLowerCase()]);
+
+    if (parseInt(countRows[0].count) >= 50) {
+      return res.status(400).json({ error: 'Limite de 50 domaines atteinte' });
+    }
+
+    await db.query(`
+      INSERT INTO subscriptions (domain, email, active)
+      VALUES ($1, $2, TRUE)
+      ON CONFLICT (domain, email)
+      DO UPDATE SET active = TRUE, created_at = NOW()
+    `, [domain.toLowerCase(), email.toLowerCase()]);
+
+    console.log(`📬 Ajout depuis manage : ${email} surveille ${domain}`);
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ─── Cron job — vérification toutes les heures ─────────────────────────────────
 cron.schedule('0 * * * *', async () => {
   console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
@@ -245,29 +410,5 @@ async function start() {
     console.log(`   Cron job actif — vérification toutes les heures`);
   });
 }
-
-
-
-
-
-
-
-
-// ─── Route de test cron (à supprimer en prod) ─────────────────────────────────
-app.get('/api/test-cron', async (req, res) => {
-  const { rows } = await db.query(
-    'SELECT email, domain FROM subscriptions WHERE active = TRUE LIMIT 1'
-  );
-  if (rows.length === 0) return res.json({ message: 'Aucun abonnement actif' });
-
-  const { email, domain } = rows[0];
-  try {
-    await sendAlertEmail(email, domain);
-    res.json({ success: true, message: `E-mail envoyé à ${email} pour ${domain}` });
-  } catch (err) {
-    res.json({ error: err.message });
-  }
-});
-
 
 start();
