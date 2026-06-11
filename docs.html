@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DomainWatch — API Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#d97757" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f9f8;
+      --surface: #ffffff;
+      --surface2: #f5f4f0;
+      --surface-code: #1a1a18;
+      --border: rgba(0,0,0,0.08);
+      --border-md: rgba(0,0,0,0.13);
+      --text: #1a1a18;
+      --text-muted: #6b6b67;
+      --text-dim: #a8a89f;
+      --accent: #d97757;
+      --accent-hover: #c96644;
+      --accent-dim: rgba(217,119,87,0.10);
+      --success: #1d9e75;
+      --success-dim: rgba(29,158,117,0.10);
+      --success-border: rgba(29,158,117,0.25);
+      --danger: #e24b4a;
+      --danger-dim: rgba(226,75,74,0.10);
+      --danger-border: rgba(226,75,74,0.25);
+      --info: #185fa5;
+      --info-dim: rgba(24,95,165,0.10);
+      --info-border: rgba(24,95,165,0.25);
+      --warning: #ba7517;
+      --warning-dim: rgba(186,117,23,0.10);
+      --warning-border: rgba(186,117,23,0.25);
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f0f0e;
+      --surface: #1a1a18;
+      --surface2: #222220;
+      --surface-code: #0d0d0c;
+      --border: rgba(255,255,255,0.07);
+      --border-md: rgba(255,255,255,0.12);
+      --text: #eceae4;
+      --text-muted: #8a8880;
+      --text-dim: #4a4a46;
+      --accent: #e08060;
+      --accent-hover: #ea9070;
+      --accent-dim: rgba(224,128,96,0.12);
+      --success: #34c97a;
+      --success-dim: rgba(52,201,122,0.10);
+      --success-border: rgba(52,201,122,0.25);
+      --danger: #f26b6a;
+      --danger-dim: rgba(242,107,106,0.10);
+      --danger-border: rgba(242,107,106,0.25);
+      --info: #378add;
+      --info-dim: rgba(55,138,221,0.12);
+      --info-border: rgba(55,138,221,0.25);
+      --warning: #ef9f27;
+      --warning-dim: rgba(239,159,39,0.10);
+      --warning-border: rgba(239,159,39,0.25);
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* Theme toggle */
+    .theme-toggle {
+      position: fixed; top: 1.25rem; right: 1.5rem;
+      background: var(--surface); border: 1px solid var(--border-md);
+      border-radius: 20px; padding: 5px 10px;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
+      font-family: var(--sans); box-shadow: var(--shadow);
+      z-index: 100; transition: all 0.15s;
+    }
+    .theme-toggle:hover { color: var(--text); }
+    .theme-toggle svg { width: 14px; height: 14px; }
+
+    /* Layout */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      position: sticky; top: 0; height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      display: flex; align-items: center; gap: 8px;
+      text-decoration: none; margin-bottom: 2rem;
+    }
+    .sidebar-logo-icon {
+      width: 28px; height: 28px; background: var(--accent);
+      border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    }
+    .sidebar-logo-icon svg { width: 14px; height: 14px; }
+    .sidebar-logo-text { font-family: var(--mono); font-size: 0.9rem; font-weight: 500; color: var(--text); }
+
+    .sidebar-section { margin-bottom: 1.5rem; }
+    .sidebar-section-title {
+      font-size: 0.68rem; font-weight: 500; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-dim);
+      font-family: var(--mono); margin-bottom: 0.5rem;
+    }
+    .sidebar-link {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0.35rem 0.6rem; border-radius: 7px;
+      font-size: 0.84rem; color: var(--text-muted);
+      text-decoration: none; transition: all 0.12s;
+      margin-bottom: 2px;
+    }
+    .sidebar-link:hover { background: var(--surface2); color: var(--text); }
+    .sidebar-link.active { background: var(--accent-dim); color: var(--accent); }
+
+    .method-badge {
+      font-family: var(--mono); font-size: 0.62rem; font-weight: 500;
+      padding: 1px 5px; border-radius: 4px; flex-shrink: 0;
+    }
+    .get  { background: var(--success-dim); color: var(--success); border: 1px solid var(--success-border); }
+    .post { background: var(--info-dim);    color: var(--info);    border: 1px solid var(--info-border); }
+    .del  { background: var(--danger-dim);  color: var(--danger);  border: 1px solid var(--danger-border); }
+
+    /* Main content */
+    .main { flex: 1; padding: 3rem 3rem 5rem; max-width: 860px; }
+
+    h1 { font-size: 2rem; font-weight: 300; letter-spacing: -0.04em; margin-bottom: 0.5rem; }
+    h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
+    h2 { font-size: 1.2rem; font-weight: 500; margin: 2.5rem 0 0.75rem; padding-top: 2.5rem; border-top: 1px solid var(--border); }
+    h2:first-of-type { border-top: none; margin-top: 1.5rem; }
+    h3 { font-size: 1rem; font-weight: 500; margin: 1.5rem 0 0.5rem; color: var(--text-muted); }
+    p  { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.75rem; line-height: 1.65; }
+
+    /* Endpoint card */
+    .endpoint {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .endpoint-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .endpoint-method {
+      font-family: var(--mono); font-size: 0.75rem; font-weight: 500;
+      padding: 3px 8px; border-radius: 6px;
+    }
+
+    .endpoint-path {
+      font-family: var(--mono); font-size: 0.9rem; color: var(--text);
+    }
+
+    .endpoint-desc { font-size: 0.84rem; color: var(--text-muted); padding: 0.9rem 1.25rem; }
+
+    /* Code blocks */
+    .code-block {
+      background: var(--surface-code);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin: 0.75rem 0;
+      overflow-x: auto;
+    }
+    .code-block pre {
+      font-family: var(--mono); font-size: 0.82rem;
+      color: #e8eaf0; line-height: 1.6; margin: 0;
+    }
+    .code-label {
+      font-family: var(--mono); font-size: 0.68rem; font-weight: 500;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text-dim); margin-bottom: 0.4rem; margin-top: 0.9rem;
+    }
+
+    /* Params table */
+    .params-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin: 0.75rem 0; }
+    .params-table th {
+      text-align: left; padding: 0.5rem 0.75rem;
+      font-size: 0.7rem; font-weight: 500; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+    }
+    .params-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .params-table tr:last-child td { border-bottom: none; }
+    .params-table code { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); }
+    .param-required { color: var(--danger); font-size: 0.72rem; font-weight: 500; }
+    .param-optional { color: var(--text-dim); font-size: 0.72rem; }
+    td:last-child { color: var(--text-muted); }
+
+    /* Alert */
+    .alert {
+      border-radius: var(--radius); padding: 0.85rem 1rem;
+      font-size: 0.84rem; margin: 1rem 0; line-height: 1.55;
+    }
+    .alert-info    { background: var(--info-dim);    border: 1px solid var(--info-border);    color: var(--info); }
+    .alert-warning { background: var(--warning-dim); border: 1px solid var(--warning-border); color: var(--warning); }
+    .alert-success { background: var(--success-dim); border: 1px solid var(--success-border); color: var(--success); }
+
+    /* Key request form */
+    .key-form {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .key-form-body { padding: 1.5rem; }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; font-size: 0.82rem; font-weight: 500; margin-bottom: 0.4rem; color: var(--text); }
+    .form-hint  { font-size: 0.76rem; color: var(--text-dim); margin-top: 0.3rem; }
+
+    input[type="email"], input[type="text"] {
+      font-family: var(--mono); font-size: 0.875rem;
+      background: var(--surface2); border: 1px solid var(--border-md);
+      border-radius: var(--radius); color: var(--text);
+      padding: 0.65rem 0.9rem; outline: none; width: 100%;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+    input::placeholder { color: var(--text-dim); }
+
+    .btn {
+      font-family: var(--sans); font-size: 0.84rem; font-weight: 500;
+      border: none; border-radius: var(--radius); padding: 0.65rem 1.25rem;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .spinner {
+      display: inline-block; width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 5px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .form-alert { display: none; border-radius: var(--radius); padding: 0.75rem 1rem; font-size: 0.83rem; margin-top: 0.75rem; }
+    .form-alert.success { background: var(--success-dim); border: 1px solid var(--success-border); color: var(--success); display: block; }
+    .form-alert.error   { background: var(--danger-dim);  border: 1px solid var(--danger-border);  color: var(--danger);  display: block; }
+
+    /* Footer */
+    footer {
+      padding: 0 3rem 3rem; font-size: 0.74rem;
+      color: var(--text-dim); font-family: var(--mono);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 640px) {
+      .sidebar { display: none; }
+      .main { padding: 2rem 1.25rem 4rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Thème">
+    <svg id="theme-icon" viewBox="0 0 16 16" fill="none">
+      <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/>
+      <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    </svg>
+  </button>
+
+  <div class="layout">
+
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <a href="/" class="sidebar-logo">
+        <div class="sidebar-logo-icon">
+          <svg viewBox="0 0 18 18" fill="none">
+            <circle cx="9" cy="9" r="7" stroke="white" stroke-width="1.5"/>
+            <path d="M9 2C9 2 11.5 5 11.5 9C11.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
+            <path d="M9 2C9 2 6.5 5 6.5 9C6.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
+            <path d="M2 9H16" stroke="white" stroke-width="1.2"/>
+          </svg>
+        </div>
+        <span class="sidebar-logo-text">DomainWatch</span>
+      </a>
+
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Démarrage</p>
+        <a href="#intro"      class="sidebar-link">Introduction</a>
+        <a href="#auth"       class="sidebar-link">Authentification</a>
+        <a href="#limits"     class="sidebar-link">Limites</a>
+        <a href="#errors"     class="sidebar-link">Codes d'erreur</a>
+      </div>
+
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Endpoints</p>
+        <a href="#check"       class="sidebar-link"><span class="method-badge get">GET</span> /v1/check</a>
+        <a href="#subscribe"   class="sidebar-link"><span class="method-badge post">POST</span> /v1/subscribe</a>
+        <a href="#unsubscribe" class="sidebar-link"><span class="method-badge del">DEL</span> /v1/unsubscribe</a>
+      </div>
+
+      <div class="sidebar-section">
+        <p class="sidebar-section-title">Clé API</p>
+        <a href="#get-key" class="sidebar-link">Obtenir une clé</a>
+      </div>
+    </nav>
+
+    <!-- Contenu principal -->
+    <main class="main">
+
+      <h1 id="intro">Documentation <em>API</em></h1>
+      <p>L'API DomainWatch vous permet de vérifier la disponibilité de noms de domaine et de gérer des alertes depuis votre propre application.</p>
+      <p>Base URL : <code style="font-family:var(--mono);font-size:0.85rem;color:var(--accent)">https://domainwatch-production-1943.up.railway.app</code></p>
+
+      <div class="alert alert-info">
+        API gratuite · 100 requêtes/jour · Aucune inscription requise — juste un e-mail pour recevoir votre clé.
+      </div>
+
+      <!-- Authentification -->
+      <h2 id="auth">Authentification</h2>
+      <p>Toutes les requêtes sur <code style="font-family:var(--mono);color:var(--accent)">/api/v1/</code> nécessitent une clé API passée dans le header HTTP :</p>
+
+      <div class="code-block">
+        <pre>Authorization: Bearer dk_votre_cle_api</pre>
+      </div>
+
+      <p>Sans clé ou avec une clé invalide, vous recevrez une erreur <code style="font-family:var(--mono);color:var(--danger)">401</code>.</p>
+
+      <!-- Limites -->
+      <h2 id="limits">Limites de taux</h2>
+      <p>Chaque clé API est limitée à <strong>100 requêtes par jour</strong> (remise à zéro à minuit UTC). Au-delà, vous recevrez une erreur <code style="font-family:var(--mono);color:var(--warning)">429</code>.</p>
+      <p>Chaque réponse inclut les champs <code style="font-family:var(--mono);color:var(--accent)">requests_today</code> et <code style="font-family:var(--mono);color:var(--accent)">daily_limit</code> pour suivre votre consommation.</p>
+
+      <!-- Codes d'erreur -->
+      <h2 id="errors">Codes d'erreur</h2>
+      <table class="params-table">
+        <tr><th>Code</th><th>Signification</th></tr>
+        <tr><td><code>200</code></td><td>Succès</td></tr>
+        <tr><td><code>400</code></td><td>Paramètre manquant ou invalide</td></tr>
+        <tr><td><code>401</code></td><td>Clé API manquante ou invalide</td></tr>
+        <tr><td><code>429</code></td><td>Limite journalière atteinte</td></tr>
+        <tr><td><code>500</code></td><td>Erreur serveur</td></tr>
+      </table>
+
+      <!-- GET /check -->
+      <h2 id="check">Vérifier un domaine</h2>
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="endpoint-method get">GET</span>
+          <span class="endpoint-path">/api/v1/check</span>
+        </div>
+        <div class="endpoint-desc">Vérifie la disponibilité d'un nom de domaine via WHOIS en temps réel.</div>
+      </div>
+
+      <h3>Paramètres</h3>
+      <table class="params-table">
+        <tr><th>Paramètre</th><th>Type</th><th>Requis</th><th>Description</th></tr>
+        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>Le nom de domaine à vérifier (ex: exemple.com)</td></tr>
+      </table>
+
+      <p class="code-label">Requête</p>
+      <div class="code-block"><pre>curl "https://domainwatch-production-1943.up.railway.app/api/v1/check?domain=exemple.com" \
+  -H "Authorization: Bearer dk_votre_cle_api"</pre></div>
+
+      <p class="code-label">Réponse — domaine disponible</p>
+      <div class="code-block"><pre>{
+  "domain":         "exemple.com",
+  "available":      true,
+  "expiry":         null,
+  "checked_at":     "2025-01-15T10:30:00.000Z",
+  "requests_today": 1,
+  "daily_limit":    100
+}</pre></div>
+
+      <p class="code-label">Réponse — domaine pris</p>
+      <div class="code-block"><pre>{
+  "domain":         "google.com",
+  "available":      false,
+  "expiry":         "14/09/2028",
+  "checked_at":     "2025-01-15T10:30:00.000Z",
+  "requests_today": 2,
+  "daily_limit":    100
+}</pre></div>
+
+      <!-- POST /subscribe -->
+      <h2 id="subscribe">S'abonner à une alerte</h2>
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="endpoint-method post">POST</span>
+          <span class="endpoint-path">/api/v1/subscribe</span>
+        </div>
+        <div class="endpoint-desc">Active une alerte e-mail pour être notifié dès qu'un domaine devient disponible.</div>
+      </div>
+
+      <h3>Corps de la requête (JSON)</h3>
+      <table class="params-table">
+        <tr><th>Paramètre</th><th>Type</th><th>Requis</th><th>Description</th></tr>
+        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>Le domaine à surveiller</td></tr>
+        <tr><td><code>email</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>L'adresse e-mail qui recevra l'alerte</td></tr>
+      </table>
+
+      <p class="code-label">Requête</p>
+      <div class="code-block"><pre>curl -X POST "https://domainwatch-production-1943.up.railway.app/api/v1/subscribe" \
+  -H "Authorization: Bearer dk_votre_cle_api" \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
+
+      <p class="code-label">Réponse</p>
+      <div class="code-block"><pre>{
+  "success": true,
+  "domain":  "mondomaine.fr",
+  "email":   "vous@exemple.com",
+  "message": "Alerte activée."
+}</pre></div>
+
+      <!-- DELETE /unsubscribe -->
+      <h2 id="unsubscribe">Se désabonner</h2>
+      <div class="endpoint">
+        <div class="endpoint-header">
+          <span class="endpoint-method del">DELETE</span>
+          <span class="endpoint-path">/api/v1/unsubscribe</span>
+        </div>
+        <div class="endpoint-desc">Désactive une alerte e-mail existante.</div>
+      </div>
+
+      <h3>Corps de la requête (JSON)</h3>
+      <table class="params-table">
+        <tr><th>Paramètre</th><th>Type</th><th>Requis</th><th>Description</th></tr>
+        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>Le domaine concerné</td></tr>
+        <tr><td><code>email</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>L'adresse e-mail abonnée</td></tr>
+      </table>
+
+      <p class="code-label">Requête</p>
+      <div class="code-block"><pre>curl -X DELETE "https://domainwatch-production-1943.up.railway.app/api/v1/unsubscribe" \
+  -H "Authorization: Bearer dk_votre_cle_api" \
+  -H "Content-Type: application/json" \
+  -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
+
+      <p class="code-label">Réponse</p>
+      <div class="code-block"><pre>{
+  "success": true,
+  "message": "Alerte désactivée."
+}</pre></div>
+
+      <!-- Obtenir une clé -->
+      <h2 id="get-key">Obtenir une clé API</h2>
+      <p>Entrez votre adresse e-mail pour recevoir votre clé API gratuitement. Vous pouvez créer jusqu'à 3 clés par adresse.</p>
+
+      <div class="key-form">
+        <div class="key-form-body">
+          <div class="form-group">
+            <label class="form-label" for="key-email">Adresse e-mail</label>
+            <input type="email" id="key-email" placeholder="vous@exemple.com" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="key-label">Label <span style="color:var(--text-dim);font-weight:400">(optionnel)</span></label>
+            <input type="text" id="key-label" placeholder="Mon projet, Mon app..." />
+            <p class="form-hint">Pour vous souvenir à quoi sert cette clé.</p>
+          </div>
+          <button class="btn btn-primary" id="key-btn" onclick="requestApiKey()">Recevoir ma clé API</button>
+          <div class="form-alert" id="key-alert"></div>
+        </div>
+      </div>
+
+      <div class="alert alert-warning" style="margin-top:1.5rem">
+        Ne partagez pas votre clé API publiquement. Si elle est compromise, contactez-nous pour la révoquer.
+      </div>
+
+    </main>
+  </div>
+
+  <footer>
+    DomainWatch v1.0 — Développé par Hugo Vial-Jaime
+    — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
+  </footer>
+
+  <script>
+    const API_BASE = 'https://domainwatch-production-1943.up.railway.app';
+
+    // ─── Thème ────────────────────────────────────────────────────────────────
+    function applyTheme(dark) {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      const icon = document.getElementById('theme-icon');
+      if (dark) {
+        icon.innerHTML = '<path d="M8 3a5 5 0 1 0 5 5 5.5 5.5 0 0 1-5-5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
+      } else {
+        icon.innerHTML = '<circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>';
+      }
+      localStorage.setItem('dw-theme', dark ? 'dark' : 'light');
+    }
+    function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-theme') !== 'dark'); }
+    (function() {
+      const saved = localStorage.getItem('dw-theme');
+      const h = new Date().getHours();
+      applyTheme(saved ? saved === 'dark' : (h >= 20 || h < 7));
+    })();
+
+    // ─── Demande de clé API ───────────────────────────────────────────────────
+    async function requestApiKey() {
+      const email = document.getElementById('key-email').value.trim();
+      const label = document.getElementById('key-label').value.trim();
+      const alertEl = document.getElementById('key-alert');
+      alertEl.className = 'form-alert';
+      alertEl.style.display = 'none';
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        alertEl.textContent = 'Veuillez entrer une adresse e-mail valide.';
+        alertEl.className = 'form-alert error';
+        return;
+      }
+
+      const btn = document.getElementById('key-btn');
+      btn.innerHTML = '<span class="spinner"></span>Envoi…';
+      btn.disabled = true;
+
+      try {
+        const res  = await fetch(`${API_BASE}/api/developer/register`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, label: label || undefined })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          alertEl.textContent = '✓ Votre clé API a été envoyée par e-mail !';
+          alertEl.className = 'form-alert success';
+          document.getElementById('key-email').value = '';
+          document.getElementById('key-label').value = '';
+        } else {
+          alertEl.textContent = data.error || 'Une erreur est survenue.';
+          alertEl.className = 'form-alert error';
+        }
+      } catch {
+        alertEl.textContent = 'Impossible de contacter le serveur.';
+        alertEl.className = 'form-alert error';
+      }
+
+      btn.innerHTML = 'Recevoir ma clé API';
+      btn.disabled = false;
+    }
+
+    document.getElementById('key-email').addEventListener('keydown', e => { if (e.key === 'Enter') requestApiKey(); });
+  </script>
+
+</body>
+</html>

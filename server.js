@@ -15,8 +15,6 @@ const port = process.env.PORT || 3000;
 // ─── Middlewares ───────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
-
-// Sert le fichier index.html statique à la racine
 app.use(express.static(path.join(__dirname)));
 
 // ─── Base de données PostgreSQL ────────────────────────────────────────────────
@@ -25,7 +23,6 @@ const db = new Pool({
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Crée les tables si elles n'existent pas encore
 async function initDB() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS subscriptions (
@@ -45,6 +42,18 @@ async function initDB() {
       expires_at TIMESTAMPTZ NOT NULL,
       used       BOOLEAN DEFAULT FALSE,
       created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id             SERIAL PRIMARY KEY,
+      email          VARCHAR(255) NOT NULL,
+      key            VARCHAR(255) NOT NULL UNIQUE,
+      label          VARCHAR(255),
+      requests_today INTEGER DEFAULT 0,
+      last_reset     DATE DEFAULT CURRENT_DATE,
+      active         BOOLEAN DEFAULT TRUE,
+      created_at     TIMESTAMPTZ DEFAULT NOW()
     )
   `);
   console.log('✅ Base de données prête');
@@ -67,7 +76,7 @@ async function sendAlertEmail(email, domain) {
         </div>
         <p>Dépêchez-vous de l'enregistrer avant qu'il ne soit pris !</p>
         <a href="https://www.namecheap.com/domains/registration/results/?domain=${domain}"
-           style="display:inline-block;background:#4f8ef7;color:white;padding:0.75rem 1.5rem;
+           style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
                   border-radius:8px;text-decoration:none;font-weight:500;margin-top:0.5rem">
           Enregistrer ce domaine →
         </a>
@@ -89,11 +98,11 @@ async function sendMagicLinkEmail(email, token) {
     subject: '🔑 Votre lien de connexion DomainWatch',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#4f8ef7">Connexion à DomainWatch</h2>
+        <h2 style="color:#d97757">Connexion à DomainWatch</h2>
         <p>Cliquez sur le bouton ci-dessous pour accéder à vos abonnements.</p>
         <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>15 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
         <a href="${link}"
-           style="display:inline-block;background:#4f8ef7;color:white;padding:0.75rem 1.5rem;
+           style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
                   border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
           Accéder à mes abonnements →
         </a>
@@ -105,52 +114,53 @@ async function sendMagicLinkEmail(email, token) {
   });
 }
 
-// ─── Vérification WHOIS ────────────────────────────────────────────────────────
+async function sendApiKeyEmail(email, key, label) {
+  const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM,
+    to:   email,
+    subject: '🔧 Votre clé API DomainWatch',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
+        <h2 style="color:#d97757">Votre clé API DomainWatch</h2>
+        <p>Voici votre clé API${label ? ` (${label})` : ''} :</p>
+        <div style="background:#f5f4f0;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0;font-family:monospace;font-size:0.95rem;word-break:break-all">
+          ${key}
+        </div>
+        <p style="font-size:0.9rem">Utilisez-la dans le header de vos requêtes :</p>
+        <div style="background:#1a1a18;color:#e8eaf0;border-radius:8px;padding:1rem 1.5rem;margin:1rem 0;font-family:monospace;font-size:0.82rem">
+          Authorization: Bearer ${key}
+        </div>
+        <a href="${APP_URL}/docs.html"
+           style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
+                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:0.5rem">
+          Voir la documentation →
+        </a>
+        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+          Limite : 100 requêtes par jour.<br/>
+          Ne partagez pas cette clé publiquement.
+        </p>
+      </div>
+    `
+  });
+}
 
-// Analyse la réponse WHOIS pour déterminer si un domaine est disponible
+// ─── Vérification WHOIS ────────────────────────────────────────────────────────
 function parseDomainAvailability(whoisData) {
-  // Si le WHOIS ne retourne rien de significatif → domaine disponible
-  if (!whoisData || Object.keys(whoisData).length === 0) {
-    return { available: true };
-  }
+  if (!whoisData || Object.keys(whoisData).length === 0) return { available: true };
 
   const raw = JSON.stringify(whoisData).toLowerCase();
 
-  // Signaux de disponibilité explicites
-  const freeSignals = [
-    'no match',
-    'not found',
-    'no entries found',
-    'status: free',
-    'status: available',
-    'object does not exist',
-    'no object found'
-  ];
-  if (freeSignals.some(s => raw.includes(s))) {
-    return { available: true };
-  }
+  const freeSignals = ['no match','not found','no entries found','status: free','status: available','object does not exist','no object found'];
+  if (freeSignals.some(s => raw.includes(s))) return { available: true };
 
-  // Signaux d'enregistrement
-  const takenSignals = [
-    'registrar',
-    'creation date',
-    'created',
-    'registrant',
-    'name server',
-    'nameserver',
-    'status: active',
-    'status: ok'
-  ];
+  const takenSignals = ['registrar','creation date','created','registrant','name server','nameserver','status: active','status: ok'];
   const isTaken = takenSignals.some(s => raw.includes(s));
 
-  // Date d'expiration (si disponible)
   const expiry =
-    whoisData.registryExpiryDate ||
-    whoisData.expiresOn ||
-    whoisData.expirationDate ||
-    whoisData['expiry date'] ||
-    whoisData['paid-till'] ||
-    null;
+    whoisData.registryExpiryDate || whoisData.expiresOn ||
+    whoisData.expirationDate || whoisData['expiry date'] ||
+    whoisData['paid-till'] || null;
 
   return {
     available: !isTaken,
@@ -158,18 +168,69 @@ function parseDomainAvailability(whoisData) {
   };
 }
 
+// ─── Middleware API Key ────────────────────────────────────────────────────────
+const DAILY_LIMIT = 100;
+
+async function requireApiKey(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Clé API manquante. Header requis : Authorization: Bearer dk_...' });
+  }
+
+  const key = authHeader.slice(7).trim();
+
+  try {
+    const { rows } = await db.query(
+      'SELECT * FROM api_keys WHERE key = $1 AND active = TRUE',
+      [key]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Clé API invalide ou désactivée' });
+    }
+
+    const apiKey = rows[0];
+
+    // Remet le compteur à zéro si on est un nouveau jour
+    if (apiKey.last_reset < new Date().toISOString().slice(0, 10)) {
+      await db.query(
+        'UPDATE api_keys SET requests_today = 0, last_reset = CURRENT_DATE WHERE id = $1',
+        [apiKey.id]
+      );
+      apiKey.requests_today = 0;
+    }
+
+    // Vérifie la limite journalière
+    if (apiKey.requests_today >= DAILY_LIMIT) {
+      return res.status(429).json({
+        error: 'Limite journalière atteinte (100 requêtes/jour)',
+        reset: 'Demain à minuit UTC'
+      });
+    }
+
+    // Incrémente le compteur
+    await db.query(
+      'UPDATE api_keys SET requests_today = requests_today + 1 WHERE id = $1',
+      [apiKey.id]
+    );
+
+    req.apiKey = apiKey;
+    next();
+  } catch (err) {
+    console.error('Erreur middleware API key:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+}
+
 // ─── Route GET /api/check ──────────────────────────────────────────────────────
 app.get('/api/check', async (req, res) => {
   const { domain } = req.query;
-
   if (!domain || !/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) {
     return res.status(400).json({ error: 'Nom de domaine invalide' });
   }
-
   try {
     const whoisData = await whois(domain);
-    const result    = parseDomainAvailability(whoisData);
-    return res.json(result);
+    return res.json(parseDomainAvailability(whoisData));
   } catch (err) {
     console.error(`Erreur WHOIS pour ${domain}:`, err.message);
     return res.status(500).json({ error: 'Impossible de vérifier ce domaine' });
@@ -179,27 +240,17 @@ app.get('/api/check', async (req, res) => {
 // ─── Route POST /api/subscribe ─────────────────────────────────────────────────
 app.post('/api/subscribe', async (req, res) => {
   const { domain, email } = req.body;
-
-  // Validations basiques
-  if (!domain || !email) {
-    return res.status(400).json({ error: 'Domaine et e-mail requis' });
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'Adresse e-mail invalide' });
-  }
-  if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) {
-    return res.status(400).json({ error: 'Nom de domaine invalide' });
-  }
+  if (!domain || !email) return res.status(400).json({ error: 'Domaine et e-mail requis' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide' });
+  if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) return res.status(400).json({ error: 'Nom de domaine invalide' });
 
   try {
-    // INSERT ou réactivation si l'abonnement existait déjà
     await db.query(`
       INSERT INTO subscriptions (domain, email, active)
       VALUES ($1, $2, TRUE)
       ON CONFLICT (domain, email)
       DO UPDATE SET active = TRUE, created_at = NOW()
     `, [domain.toLowerCase(), email.toLowerCase()]);
-
     console.log(`📬 Nouvel abonnement : ${email} surveille ${domain}`);
     return res.json({ success: true });
   } catch (err) {
@@ -208,30 +259,35 @@ app.post('/api/subscribe', async (req, res) => {
   }
 });
 
-// ─── Route GET /api/subscriptions (debug — à retirer en prod) ─────────────────
+// ─── Route GET /api/subscriptions (debug) ─────────────────────────────────────
 app.get('/api/subscriptions', async (req, res) => {
   const { rows } = await db.query('SELECT * FROM subscriptions ORDER BY created_at DESC');
   res.json(rows);
 });
 
-// ─── Routes Magic Link ─────────────────────────────────────────────────────────
+// ─── Route de test cron (debug) ───────────────────────────────────────────────
+app.get('/api/test-cron', async (req, res) => {
+  const { rows } = await db.query('SELECT email, domain FROM subscriptions WHERE active = TRUE LIMIT 1');
+  if (rows.length === 0) return res.json({ message: 'Aucun abonnement actif' });
+  const { email, domain } = rows[0];
+  try {
+    await sendAlertEmail(email, domain);
+    res.json({ success: true, message: `E-mail envoyé à ${email} pour ${domain}` });
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
 
-// POST /api/auth/request — demande un magic link
+// ─── Routes Magic Link ─────────────────────────────────────────────────────────
 app.post('/api/auth/request', async (req, res) => {
   const { email } = req.body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'Adresse e-mail invalide' });
-  }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide' });
 
-  const token    = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+  const token     = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
   try {
-    await db.query(`
-      INSERT INTO magic_links (email, token, expires_at)
-      VALUES ($1, $2, $3)
-    `, [email.toLowerCase(), token, expiresAt]);
-
+    await db.query('INSERT INTO magic_links (email, token, expires_at) VALUES ($1, $2, $3)', [email.toLowerCase(), token, expiresAt]);
     await sendMagicLinkEmail(email.toLowerCase(), token);
     console.log(`🔑 Magic link envoyé à ${email}`);
     return res.json({ success: true });
@@ -241,24 +297,14 @@ app.post('/api/auth/request', async (req, res) => {
   }
 });
 
-// GET /api/auth/verify?token=xxx — vérifie le token et retourne l'e-mail
 app.get('/api/auth/verify', async (req, res) => {
   const { token } = req.query;
   if (!token) return res.status(400).json({ error: 'Token manquant' });
 
   try {
-    const { rows } = await db.query(`
-      SELECT * FROM magic_links
-      WHERE token = $1 AND used = FALSE AND expires_at > NOW()
-    `, [token]);
-
-    if (rows.length === 0) {
-      return res.status(401).json({ error: 'Lien invalide ou expiré' });
-    }
-
-    // Marque le token comme utilisé
+    const { rows } = await db.query('SELECT * FROM magic_links WHERE token = $1 AND used = FALSE AND expires_at > NOW()', [token]);
+    if (rows.length === 0) return res.status(401).json({ error: 'Lien invalide ou expiré' });
     await db.query('UPDATE magic_links SET used = TRUE WHERE token = $1', [token]);
-
     return res.json({ success: true, email: rows[0].email });
   } catch (err) {
     console.error('Erreur verify token:', err.message);
@@ -267,111 +313,58 @@ app.get('/api/auth/verify', async (req, res) => {
 });
 
 // ─── Routes de gestion des abonnements ────────────────────────────────────────
-
-// GET /api/manage/subscriptions?email=xxx — liste les abonnements
 app.get('/api/manage/subscriptions', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
-
   try {
-    const { rows } = await db.query(`
-      SELECT id, domain, active, created_at
-      FROM subscriptions
-      WHERE email = $1
-      ORDER BY created_at DESC
-    `, [email.toLowerCase()]);
+    const { rows } = await db.query('SELECT id, domain, active, created_at FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
     return res.json(rows);
-  } catch (err) {
-    return res.status(500).json({ error: 'Erreur serveur' });
-  }
+  } catch (err) { return res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
-// PATCH /api/manage/subscription/:id/toggle — active ou désactive la surveillance
 app.patch('/api/manage/subscription/:id/toggle', async (req, res) => {
-  const { id }    = req.params;
+  const { id } = req.params;
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
 
   try {
-    // Vérifie la limite de 50 actifs avant de réactiver
-    const { rows: sub } = await db.query(
-      'SELECT active FROM subscriptions WHERE id = $1 AND email = $2',
-      [id, email.toLowerCase()]
-    );
+    const { rows: sub } = await db.query('SELECT active FROM subscriptions WHERE id = $1 AND email = $2', [id, email.toLowerCase()]);
     if (sub.length === 0) return res.status(404).json({ error: 'Abonnement introuvable' });
 
-    // Si on veut réactiver, vérifier la limite
     if (!sub[0].active) {
-      const { rows: countRows } = await db.query(
-        'SELECT COUNT(*) FROM subscriptions WHERE email = $1 AND active = TRUE',
-        [email.toLowerCase()]
-      );
-      if (parseInt(countRows[0].count) >= 50) {
-        return res.status(400).json({ error: 'Limite de 50 surveillances actives atteinte' });
-      }
+      const { rows: countRows } = await db.query('SELECT COUNT(*) FROM subscriptions WHERE email = $1 AND active = TRUE', [email.toLowerCase()]);
+      if (parseInt(countRows[0].count) >= 50) return res.status(400).json({ error: 'Limite de 50 surveillances actives atteinte' });
     }
 
-    const result = await db.query(`
-      UPDATE subscriptions SET active = NOT active
-      WHERE id = $1 AND email = $2
-      RETURNING active
-    `, [id, email.toLowerCase()]);
-
+    const result = await db.query('UPDATE subscriptions SET active = NOT active WHERE id = $1 AND email = $2 RETURNING active', [id, email.toLowerCase()]);
     return res.json({ success: true, active: result.rows[0].active });
-  } catch (err) {
-    return res.status(500).json({ error: 'Erreur serveur' });
-  }
+  } catch (err) { return res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
-// DELETE /api/manage/subscription/:id — supprime définitivement un abonnement
 app.delete('/api/manage/subscription/:id', async (req, res) => {
-  const { id }    = req.params;
+  const { id } = req.params;
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
 
   try {
-    const result = await db.query(
-      'DELETE FROM subscriptions WHERE id = $1 AND email = $2',
-      [id, email.toLowerCase()]
-    );
+    const result = await db.query('DELETE FROM subscriptions WHERE id = $1 AND email = $2', [id, email.toLowerCase()]);
     if (result.rowCount === 0) return res.status(404).json({ error: 'Abonnement introuvable' });
     return res.json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ error: 'Erreur serveur' });
-  }
+  } catch (err) { return res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
-// POST /api/manage/subscribe — ajoute un domaine (limite 50 actifs, 200 total)
 app.post('/api/manage/subscribe', async (req, res) => {
   const { email, domain } = req.body;
-
-  if (!email || !domain) {
-    return res.status(400).json({ error: 'E-mail et domaine requis' });
-  }
-  if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) {
-    return res.status(400).json({ error: 'Nom de domaine invalide' });
-  }
+  if (!email || !domain) return res.status(400).json({ error: 'E-mail et domaine requis' });
+  if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) return res.status(400).json({ error: 'Nom de domaine invalide' });
 
   try {
-    // Vérifie la limite de 50 domaines actifs
-    const { rows: activeRows } = await db.query(
-      'SELECT COUNT(*) FROM subscriptions WHERE email = $1 AND active = TRUE',
-      [email.toLowerCase()]
-    );
-    if (parseInt(activeRows[0].count) >= 50) {
-      return res.status(400).json({ error: 'Limite de 50 surveillances actives atteinte' });
-    }
+    const { rows: activeRows } = await db.query('SELECT COUNT(*) FROM subscriptions WHERE email = $1 AND active = TRUE', [email.toLowerCase()]);
+    if (parseInt(activeRows[0].count) >= 50) return res.status(400).json({ error: 'Limite de 50 surveillances actives atteinte' });
 
-    // Vérifie la limite de 200 domaines au total
-    const { rows: totalRows } = await db.query(
-      'SELECT COUNT(*) FROM subscriptions WHERE email = $1',
-      [email.toLowerCase()]
-    );
-    if (parseInt(totalRows[0].count) >= 200) {
-      return res.status(400).json({ error: 'Limite de 200 domaines atteinte — supprimez des entrées pour en ajouter de nouvelles' });
-    }
+    const { rows: totalRows } = await db.query('SELECT COUNT(*) FROM subscriptions WHERE email = $1', [email.toLowerCase()]);
+    if (parseInt(totalRows[0].count) >= 200) return res.status(400).json({ error: 'Limite de 200 domaines atteinte — supprimez des entrées pour en ajouter de nouvelles' });
 
-    // Vérifie si le domaine est déjà disponible via WHOIS
     const whoisData = await whois(domain);
     const { available } = parseDomainAvailability(whoisData);
     if (available) {
@@ -383,10 +376,8 @@ app.post('/api/manage/subscribe', async (req, res) => {
     }
 
     await db.query(`
-      INSERT INTO subscriptions (domain, email, active)
-      VALUES ($1, $2, TRUE)
-      ON CONFLICT (domain, email)
-      DO UPDATE SET active = TRUE, created_at = NOW()
+      INSERT INTO subscriptions (domain, email, active) VALUES ($1, $2, TRUE)
+      ON CONFLICT (domain, email) DO UPDATE SET active = TRUE, created_at = NOW()
     `, [domain.toLowerCase(), email.toLowerCase()]);
 
     console.log(`📬 Ajout depuis manage : ${email} surveille ${domain}`);
@@ -397,15 +388,108 @@ app.post('/api/manage/subscribe', async (req, res) => {
   }
 });
 
+// ─── Routes API publique v1 ────────────────────────────────────────────────────
+
+// POST /api/developer/register — demande une clé API
+app.post('/api/developer/register', async (req, res) => {
+  const { email, label } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Adresse e-mail invalide' });
+  }
+
+  // Limite : 3 clés max par e-mail
+  try {
+    const { rows: existing } = await db.query(
+      'SELECT COUNT(*) FROM api_keys WHERE email = $1 AND active = TRUE',
+      [email.toLowerCase()]
+    );
+    if (parseInt(existing[0].count) >= 3) {
+      return res.status(400).json({ error: 'Limite de 3 clés API atteinte pour cet e-mail' });
+    }
+
+    const key = 'dk_' + crypto.randomBytes(24).toString('hex');
+    await db.query(
+      'INSERT INTO api_keys (email, key, label) VALUES ($1, $2, $3)',
+      [email.toLowerCase(), key, label || null]
+    );
+
+    await sendApiKeyEmail(email.toLowerCase(), key, label);
+    console.log(`🔧 Nouvelle clé API créée pour ${email}`);
+    return res.json({ success: true, message: 'Votre clé API a été envoyée par e-mail.' });
+  } catch (err) {
+    console.error('Erreur register API key:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// GET /api/v1/check — vérification WHOIS via clé API
+app.get('/api/v1/check', requireApiKey, async (req, res) => {
+  const { domain } = req.query;
+  if (!domain || !/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) {
+    return res.status(400).json({ error: 'Nom de domaine invalide' });
+  }
+  try {
+    const whoisData = await whois(domain);
+    const result    = parseDomainAvailability(whoisData);
+    return res.json({
+      domain,
+      available:      result.available,
+      expiry:         result.expiry || null,
+      checked_at:     new Date().toISOString(),
+      requests_today: req.apiKey.requests_today + 1,
+      daily_limit:    DAILY_LIMIT
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Impossible de vérifier ce domaine' });
+  }
+});
+
+// POST /api/v1/subscribe — abonnement via clé API
+app.post('/api/v1/subscribe', requireApiKey, async (req, res) => {
+  const { domain, email } = req.body;
+  if (!domain || !email) return res.status(400).json({ error: 'domain et email requis' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'E-mail invalide' });
+  if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) return res.status(400).json({ error: 'Domaine invalide' });
+
+  try {
+    const whoisData = await whois(domain);
+    const { available } = parseDomainAvailability(whoisData);
+    if (available) return res.status(400).json({ error: 'Ce domaine est déjà disponible', available: true });
+
+    await db.query(`
+      INSERT INTO subscriptions (domain, email, active) VALUES ($1, $2, TRUE)
+      ON CONFLICT (domain, email) DO UPDATE SET active = TRUE, created_at = NOW()
+    `, [domain.toLowerCase(), email.toLowerCase()]);
+
+    return res.json({ success: true, domain, email, message: 'Alerte activée.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// DELETE /api/v1/unsubscribe — désabonnement via clé API
+app.delete('/api/v1/unsubscribe', requireApiKey, async (req, res) => {
+  const { domain, email } = req.body;
+  if (!domain || !email) return res.status(400).json({ error: 'domain et email requis' });
+
+  try {
+    await db.query(
+      'UPDATE subscriptions SET active = FALSE WHERE domain = $1 AND email = $2',
+      [domain.toLowerCase(), email.toLowerCase()]
+    );
+    return res.json({ success: true, message: 'Alerte désactivée.' });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ─── Cron job — vérification toutes les heures ─────────────────────────────────
 cron.schedule('0 * * * *', async () => {
   console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
 
   let rows;
   try {
-    const result = await db.query(
-      'SELECT DISTINCT domain FROM subscriptions WHERE active = TRUE'
-    );
+    const result = await db.query('SELECT DISTINCT domain FROM subscriptions WHERE active = TRUE');
     rows = result.rows;
   } catch (err) {
     console.error('Erreur lecture DB (cron):', err.message);
@@ -419,14 +503,7 @@ cron.schedule('0 * * * *', async () => {
 
       if (available) {
         console.log(`✅ ${domain} est maintenant disponible !`);
-
-        // Récupère tous les e-mails abonnés à ce domaine
-        const { rows: subs } = await db.query(
-          'SELECT email FROM subscriptions WHERE domain = $1 AND active = TRUE',
-          [domain]
-        );
-
-        // Envoie un e-mail à chaque abonné
+        const { rows: subs } = await db.query('SELECT email FROM subscriptions WHERE domain = $1 AND active = TRUE', [domain]);
         for (const { email } of subs) {
           try {
             await sendAlertEmail(email, domain);
@@ -435,19 +512,12 @@ cron.schedule('0 * * * *', async () => {
             console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
           }
         }
-
-        // Désactive les abonnements pour ce domaine
-        await db.query(
-          'UPDATE subscriptions SET active = FALSE WHERE domain = $1',
-          [domain]
-        );
+        await db.query('UPDATE subscriptions SET active = FALSE WHERE domain = $1', [domain]);
       } else {
         console.log(`⏳ ${domain} toujours pris`);
       }
 
-      // Pause 1 seconde entre chaque domaine pour éviter d'être bloqué
       await new Promise(r => setTimeout(r, 1000));
-
     } catch (err) {
       console.error(`Erreur cron pour ${domain}:`, err.message);
     }
