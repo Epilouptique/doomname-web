@@ -346,7 +346,7 @@
         <div class="code-body">
           <pre><span class="c-gray">// Vérifier un domaine</span>
 <span class="c-blue">const</span> res = <span class="c-orange">await</span> fetch(
-  <span class="c-green">'https://doomname.com/api/v1/check?domain=exemple.com'</span>,
+  <span class="c-green">'https://www.doomname.com/api/v1/check?domain=exemple.com'</span>,
   { headers: { <span class="c-green">'Authorization'</span>: <span class="c-green">'Bearer dk_votre_cle'</span> } }
 );
 <span class="c-blue">const</span> data = <span class="c-orange">await</span> res.json();
@@ -365,7 +365,7 @@ console.log(data.available ? <span class="c-green">'Disponible !'</span> : <span
           <pre><span class="c-orange">import</span> requests
 
 res = requests.get(
-    <span class="c-green">'https://doomname.com/api/v1/check'</span>,
+    <span class="c-green">'https://www.doomname.com/api/v1/check'</span>,
     params={<span class="c-green">'domain'</span>: <span class="c-green">'exemple.com'</span>},
     headers={<span class="c-green">'Authorization'</span>: <span class="c-green">'Bearer dk_votre_cle'</span>}
 )
@@ -380,7 +380,7 @@ data = res.json()
           <button class="code-copy" onclick="copyCode(this)">Copier</button>
         </div>
         <div class="code-body">
-          <pre>curl <span class="c-green">"https://doomname.com/api/v1/check?domain=exemple.com"</span> \
+          <pre>curl <span class="c-green">"https://www.doomname.com/api/v1/check?domain=exemple.com"</span> \
   -H <span class="c-green">"Authorization: Bearer dk_votre_cle"</span></pre>
         </div>
       </div>
@@ -453,7 +453,7 @@ npm install && node server.js</pre>
   </footer>
 
   <script>
-    const API_BASE = 'https://doomname.com';
+    const API_BASE = 'https://www.doomname.com';
 
     // ─── Thème ────────────────────────────────────────────────────────────────
     function applyTheme(dark) {

@@ -328,7 +328,7 @@
 
       <h1 id="intro">Documentation <em>API</em></h1>
       <p>L'API DoomName vous permet de vérifier la disponibilité de noms de domaine et de gérer des alertes depuis votre propre application.</p>
-      <p>Base URL : <code style="font-family:var(--mono);font-size:0.85rem;color:var(--accent)">https://doomname.com</code></p>
+      <p>Base URL : <code style="font-family:var(--mono);font-size:0.85rem;color:var(--accent)">https://www.doomname.com</code></p>
 
       <div class="alert alert-info">
         API gratuite · 100 requêtes/jour · Aucune inscription requise — juste un e-mail pour recevoir votre clé.
@@ -377,7 +377,7 @@
       </table>
 
       <p class="code-label">Requête</p>
-      <div class="code-block"><pre>curl "https://doomname.com/api/v1/check?domain=exemple.com" \
+      <div class="code-block"><pre>curl "https://www.doomname.com/api/v1/check?domain=exemple.com" \
   -H "Authorization: Bearer dk_votre_cle_api"</pre></div>
 
       <p class="code-label">Réponse — domaine disponible</p>
@@ -418,7 +418,7 @@
       </table>
 
       <p class="code-label">Requête</p>
-      <div class="code-block"><pre>curl -X POST "https://doomname.com/api/v1/subscribe" \
+      <div class="code-block"><pre>curl -X POST "https://www.doomname.com/api/v1/subscribe" \
   -H "Authorization: Bearer dk_votre_cle_api" \
   -H "Content-Type: application/json" \
   -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
@@ -449,7 +449,7 @@
       </table>
 
       <p class="code-label">Requête</p>
-      <div class="code-block"><pre>curl -X DELETE "https://doomname.com/api/v1/unsubscribe" \
+      <div class="code-block"><pre>curl -X DELETE "https://www.doomname.com/api/v1/unsubscribe" \
   -H "Authorization: Bearer dk_votre_cle_api" \
   -H "Content-Type: application/json" \
   -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
@@ -494,7 +494,7 @@
   </footer>
 
   <script>
-    const API_BASE = 'https://doomname.com';
+    const API_BASE = 'https://www.doomname.com';
 
     // ─── Thème ────────────────────────────────────────────────────────────────
     function applyTheme(dark) {
