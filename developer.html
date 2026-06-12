@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DomainWatch — Développeurs</title>
+  <title>DoomName — Développeurs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="manifest" href="/manifest.json" />
@@ -262,7 +262,7 @@
           <path d="M2 9H16" stroke="white" stroke-width="1.2"/>
         </svg>
       </div>
-      <span class="logo-text">DomainWatch</span>
+      <span class="logo-text">DoomName</span>
     </a>
 
     <h1>Pour les <em>développeurs</em></h1>
@@ -346,7 +346,7 @@
         <div class="code-body">
           <pre><span class="c-gray">// Vérifier un domaine</span>
 <span class="c-blue">const</span> res = <span class="c-orange">await</span> fetch(
-  <span class="c-green">'https://domainwatch-production-1943.up.railway.app/api/v1/check?domain=exemple.com'</span>,
+  <span class="c-green">'https://doomname.com/api/v1/check?domain=exemple.com'</span>,
   { headers: { <span class="c-green">'Authorization'</span>: <span class="c-green">'Bearer dk_votre_cle'</span> } }
 );
 <span class="c-blue">const</span> data = <span class="c-orange">await</span> res.json();
@@ -365,7 +365,7 @@ console.log(data.available ? <span class="c-green">'Disponible !'</span> : <span
           <pre><span class="c-orange">import</span> requests
 
 res = requests.get(
-    <span class="c-green">'https://domainwatch-production-1943.up.railway.app/api/v1/check'</span>,
+    <span class="c-green">'https://doomname.com/api/v1/check'</span>,
     params={<span class="c-green">'domain'</span>: <span class="c-green">'exemple.com'</span>},
     headers={<span class="c-green">'Authorization'</span>: <span class="c-green">'Bearer dk_votre_cle'</span>}
 )
@@ -380,7 +380,7 @@ data = res.json()
           <button class="code-copy" onclick="copyCode(this)">Copier</button>
         </div>
         <div class="code-body">
-          <pre>curl <span class="c-green">"https://domainwatch-production-1943.up.railway.app/api/v1/check?domain=exemple.com"</span> \
+          <pre>curl <span class="c-green">"https://doomname.com/api/v1/check?domain=exemple.com"</span> \
   -H <span class="c-green">"Authorization: Bearer dk_votre_cle"</span></pre>
         </div>
       </div>
@@ -403,7 +403,7 @@ data = res.json()
     <div class="section">
       <div class="selfhost">
         <h3>🚀 Déployez votre propre instance</h3>
-        <p>DomainWatch est entièrement open source. Clonez le repo et déployez votre propre instance en quelques minutes sur Railway, Render, Fly.io ou votre propre VPS.</p>
+        <p>DoomName est entièrement open source. Clonez le repo et déployez votre propre instance en quelques minutes sur Railway, Render, Fly.io ou votre propre VPS.</p>
         <div class="code-wrap" style="margin-bottom:1rem">
           <div class="code-header">
             <span class="code-lang">bash</span>
@@ -411,7 +411,7 @@ data = res.json()
           </div>
           <div class="code-body">
             <pre>git clone https://github.com/Epilouptique/domainwatch.git
-cd domainwatch
+cd DoomName
 cp .env.example .env
 <span class="c-gray"># Remplissez .env avec vos variables</span>
 npm install && node server.js</pre>
@@ -447,13 +447,13 @@ npm install && node server.js</pre>
   </div>
 
   <footer>
-    DomainWatch v1.0 — Développé par Hugo Vial-Jaime
+    DoomName v1.0 — Développé par Hugo Vial-Jaime
     — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
     &nbsp;·&nbsp; <a href="/cgv.html">CGV</a>
   </footer>
 
   <script>
-    const API_BASE = 'https://domainwatch-production-1943.up.railway.app';
+    const API_BASE = 'https://doomname.com';
 
     // ─── Thème ────────────────────────────────────────────────────────────────
     function applyTheme(dark) {

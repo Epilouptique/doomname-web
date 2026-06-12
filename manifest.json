@@ -1,6 +1,6 @@
-{
-  "name": "DomainWatch",
-  "short_name": "DomainWatch",
+﻿{
+  "name": "DoomName",
+  "short_name": "DoomName",
   "description": "Surveillez la disponibilité de vos noms de domaine",
   "start_url": "/",
   "display": "standalone",

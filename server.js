@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 
 const express    = require('express');
 const cors       = require('cors');
@@ -81,7 +81,7 @@ async function sendAlertEmail(email, domain) {
           Enregistrer ce domaine →
         </a>
         <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-          Vous recevez cet e-mail car vous avez activé une alerte sur DomainWatch.<br/>
+          Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.<br/>
           Votre alerte a été désactivée automatiquement.
         </p>
       </div>
@@ -95,10 +95,10 @@ async function sendMagicLinkEmail(email, token) {
   await resend.emails.send({
     from: process.env.EMAIL_FROM,
     to:   email,
-    subject: '🔑 Votre lien de connexion DomainWatch',
+    subject: '🔑 Votre lien de connexion DoomName',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#d97757">Connexion à DomainWatch</h2>
+        <h2 style="color:#d97757">Connexion à DoomName</h2>
         <p>Cliquez sur le bouton ci-dessous pour accéder à vos abonnements.</p>
         <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>15 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
         <a href="${link}"
@@ -119,10 +119,10 @@ async function sendApiKeyEmail(email, key, label) {
   await resend.emails.send({
     from: process.env.EMAIL_FROM,
     to:   email,
-    subject: '🔧 Votre clé API DomainWatch',
+    subject: '🔧 Votre clé API DoomName',
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#d97757">Votre clé API DomainWatch</h2>
+        <h2 style="color:#d97757">Votre clé API DoomName</h2>
         <p>Voici votre clé API${label ? ` (${label})` : ''} :</p>
         <div style="background:#f5f4f0;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0;font-family:monospace;font-size:0.95rem;word-break:break-all">
           ${key}
@@ -530,7 +530,7 @@ cron.schedule('0 * * * *', async () => {
 async function start() {
   await initDB();
   app.listen(port, () => {
-    console.log(`🚀 DomainWatch en ligne sur http://localhost:${port}`);
+    console.log(`🚀 DoomName en ligne sur http://localhost:${port}`);
     console.log(`   Cron job actif — vérification toutes les heures`);
   });
 }

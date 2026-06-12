@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DomainWatch — API Documentation</title>
+  <title>DoomName — API Documentation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="manifest" href="/manifest.json" />
@@ -299,7 +299,7 @@
             <path d="M2 9H16" stroke="white" stroke-width="1.2"/>
           </svg>
         </div>
-        <span class="sidebar-logo-text">DomainWatch</span>
+        <span class="sidebar-logo-text">DoomName</span>
       </a>
 
       <div class="sidebar-section">
@@ -327,8 +327,8 @@
     <main class="main">
 
       <h1 id="intro">Documentation <em>API</em></h1>
-      <p>L'API DomainWatch vous permet de vérifier la disponibilité de noms de domaine et de gérer des alertes depuis votre propre application.</p>
-      <p>Base URL : <code style="font-family:var(--mono);font-size:0.85rem;color:var(--accent)">https://domainwatch-production-1943.up.railway.app</code></p>
+      <p>L'API DoomName vous permet de vérifier la disponibilité de noms de domaine et de gérer des alertes depuis votre propre application.</p>
+      <p>Base URL : <code style="font-family:var(--mono);font-size:0.85rem;color:var(--accent)">https://doomname.com</code></p>
 
       <div class="alert alert-info">
         API gratuite · 100 requêtes/jour · Aucune inscription requise — juste un e-mail pour recevoir votre clé.
@@ -377,7 +377,7 @@
       </table>
 
       <p class="code-label">Requête</p>
-      <div class="code-block"><pre>curl "https://domainwatch-production-1943.up.railway.app/api/v1/check?domain=exemple.com" \
+      <div class="code-block"><pre>curl "https://doomname.com/api/v1/check?domain=exemple.com" \
   -H "Authorization: Bearer dk_votre_cle_api"</pre></div>
 
       <p class="code-label">Réponse — domaine disponible</p>
@@ -418,7 +418,7 @@
       </table>
 
       <p class="code-label">Requête</p>
-      <div class="code-block"><pre>curl -X POST "https://domainwatch-production-1943.up.railway.app/api/v1/subscribe" \
+      <div class="code-block"><pre>curl -X POST "https://doomname.com/api/v1/subscribe" \
   -H "Authorization: Bearer dk_votre_cle_api" \
   -H "Content-Type: application/json" \
   -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
@@ -449,7 +449,7 @@
       </table>
 
       <p class="code-label">Requête</p>
-      <div class="code-block"><pre>curl -X DELETE "https://domainwatch-production-1943.up.railway.app/api/v1/unsubscribe" \
+      <div class="code-block"><pre>curl -X DELETE "https://doomname.com/api/v1/unsubscribe" \
   -H "Authorization: Bearer dk_votre_cle_api" \
   -H "Content-Type: application/json" \
   -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
@@ -488,13 +488,13 @@
   </div>
 
   <footer>
-    DomainWatch v1.0 — Développé par Hugo Vial-Jaime
+    DoomName v1.0 — Développé par Hugo Vial-Jaime
     — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
     &nbsp;·&nbsp; <a href="/cgv.html">CGV</a>
   </footer>
 
   <script>
-    const API_BASE = 'https://domainwatch-production-1943.up.railway.app';
+    const API_BASE = 'https://doomname.com';
 
     // ─── Thème ────────────────────────────────────────────────────────────────
     function applyTheme(dark) {

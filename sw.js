@@ -1,4 +1,4 @@
-// sw.js — Service Worker DomainWatch
+﻿// sw.js — Service Worker DoomName
 // Doit être à la racine du projet
 
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
@@ -21,7 +21,7 @@ messaging.onBackgroundMessage(function(payload) {
 
   const { title, body, icon } = payload.notification || {};
 
-  self.registration.showNotification(title || 'DomainWatch', {
+  self.registration.showNotification(title || 'DoomName', {
     body:  body  || 'Un domaine que vous surveillez est disponible !',
     icon:  icon  || '/icon-192.png',
     badge: '/icon-192.png',
