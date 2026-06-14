@@ -6,6 +6,8 @@
   <title>DoomName — Développeurs</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="icon" href="doomname-icon.ico" sizes="any" />
+  <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#d97757" />
   <style>
@@ -93,11 +95,12 @@
       display: inline-flex; align-items: center; gap: 10px;
       margin-bottom: 1.5rem; text-decoration: none;
     }
-    .logo-icon {
-      width: 34px; height: 34px; background: var(--accent);
-      border-radius: 9px; display: flex; align-items: center; justify-content: center;
-    }
-    .logo-icon svg { width: 17px; height: 17px; }
+    .logo-icon { display: flex; align-items: center; justify-content: center; }
+    .logo-img { width: 50px; height: 50px; object-fit: contain; }
+    .logo-img-dark { display: none; }
+    [data-theme="dark"] .logo-img-light { display: none; }
+    [data-theme="dark"] .logo-img-dark { display: block; }
+
     .logo-text { font-family: 'AmazDoom', var(--mono); font-size: 3rem; font-weight: normal; letter-spacing: 0.02em; color: var(--text); }
 
     h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 300; letter-spacing: -0.04em; margin-bottom: 0.6rem; }
@@ -262,12 +265,8 @@
   <header>
     <a href="/" class="logo">
       <div class="logo-icon">
-        <svg viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="7" stroke="white" stroke-width="1.5"/>
-          <path d="M9 2C9 2 11.5 5 11.5 9C11.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
-          <path d="M9 2C9 2 6.5 5 6.5 9C6.5 13 9 16 9 16" stroke="white" stroke-width="1.2"/>
-          <path d="M2 9H16" stroke="white" stroke-width="1.2"/>
-        </svg>
+        <img src="doomname-logo-light-50.png" class="logo-img logo-img-light" alt="DoomName">
+        <img src="doomname-logo-dark-50.png" class="logo-img logo-img-dark" alt="DoomName">
       </div>
       <span class="logo-text">DoomName</span>
     </a>
