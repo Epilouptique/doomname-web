@@ -7,6 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
+    @font-face {
+      font-family: 'AmazDoom';
+      src: url('fonts/AmazDooMLeft.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -100,7 +107,7 @@
       border-radius: 9px; display: flex; align-items: center; justify-content: center;
     }
     .logo-icon svg { width: 17px; height: 17px; }
-    .logo-text { font-family: var(--mono); font-size: 1rem; font-weight: 500; letter-spacing: -0.01em; color: var(--text); }
+    .logo-text { font-family: 'AmazDoom', var(--mono); font-size: 2rem; font-weight: normal; color: var(--text); }
 
     h1 { font-size: clamp(1.4rem, 3vw, 1.9rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 0.4rem; }
     h1 em { font-style: normal; color: var(--accent); font-weight: 500; }

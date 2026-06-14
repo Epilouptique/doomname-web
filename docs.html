@@ -9,6 +9,13 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#d97757" />
   <style>
+    @font-face {
+      font-family: 'AmazDoom';
+      src: url('fonts/AmazDooMLeft.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -114,7 +121,7 @@
       border-radius: 7px; display: flex; align-items: center; justify-content: center;
     }
     .sidebar-logo-icon svg { width: 14px; height: 14px; }
-    .sidebar-logo-text { font-family: var(--mono); font-size: 0.9rem; font-weight: 500; color: var(--text); }
+    .sidebar-logo-text { font-family: 'AmazDoom', var(--mono); font-size: 2rem; font-weight: normal; color: var(--text); }
 
     .sidebar-section { margin-bottom: 1.5rem; }
     .sidebar-section-title {
