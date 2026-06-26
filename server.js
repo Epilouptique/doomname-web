@@ -155,11 +155,32 @@ async function sendApiKeyEmail(email, key, label) {
   });
 }
 
+// ─── Cache WHOIS (évite le rate-limiting des registrars) ──────────────────────
+const whoisCache = new Map();
+const CACHE_DURATION_MS = 60 * 1000; // 60 secondes
+
+async function getWhoisWithCache(domain) {
+  const cached = whoisCache.get(domain);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION_MS) {
+    return cached.data;
+  }
+  const whoisData = await whois(domain);
+  whoisCache.set(domain, { data: whoisData, timestamp: Date.now() });
+  return whoisData;
+}
+
 // ─── Vérification WHOIS ────────────────────────────────────────────────────────
 function parseDomainAvailability(whoisData) {
   if (!whoisData || Object.keys(whoisData).length === 0) return { available: true };
 
   const raw = JSON.stringify(whoisData).toLowerCase();
+
+  // Détection de réponse suspecte/tronquée (signe de rate-limiting du registrar)
+  const dataSize = JSON.stringify(whoisData).length;
+  const hasMinimalFields = Object.keys(whoisData).length <= 2;
+  if (dataSize < 100 && hasMinimalFields) {
+    throw new Error('Réponse WHOIS suspecte (possible rate-limiting du registrar)');
+  }
 
   const freeSignals = ['no match','not found','no entries found','status: free','status: available','object does not exist','no object found'];
   if (freeSignals.some(s => raw.includes(s))) return { available: true };
@@ -239,11 +260,11 @@ app.get('/api/check', async (req, res) => {
     return res.status(400).json({ error: 'Nom de domaine invalide' });
   }
   try {
-    const whoisData = await whois(domain);
+    const whoisData = await getWhoisWithCache(domain);
     return res.json(parseDomainAvailability(whoisData));
   } catch (err) {
     console.error(`Erreur WHOIS pour ${domain}:`, err.message);
-    return res.status(500).json({ error: 'Impossible de vérifier ce domaine' });
+    return res.status(503).json({ error: 'Service WHOIS temporairement indisponible, réessayez dans une minute' });
   }
 });
 
