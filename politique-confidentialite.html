@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DoomName — Politique de confidentialité</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="icon" href="doomname-icon.ico" sizes="any" />
+  <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#d97757" />
+  <style>
+    @font-face {
+      font-family: 'AmazDoom';
+      src: url('fonts/AmazDooMLeft.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f9f9f8;
+      --surface: #ffffff;
+      --surface2: #f5f4f0;
+      --border: rgba(0,0,0,0.08);
+      --border-md: rgba(0,0,0,0.13);
+      --text: #1a1a18;
+      --text-muted: #6b6b67;
+      --text-dim: #a8a89f;
+      --accent: #d97757;
+      --accent-hover: #c96644;
+      --accent-dim: rgba(217,119,87,0.10);
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Inter', sans-serif;
+      --radius: 10px;
+      --radius-lg: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f0f0e;
+      --surface: #1a1a18;
+      --surface2: #222220;
+      --border: rgba(255,255,255,0.07);
+      --border-md: rgba(255,255,255,0.12);
+      --text: #eceae4;
+      --text-muted: #8a8880;
+      --text-dim: #4a4a46;
+      --accent: #e08060;
+      --accent-hover: #ea9070;
+      --accent-dim: rgba(224,128,96,0.12);
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem 5rem;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .theme-toggle {
+      position: fixed; top: 1.25rem; right: 1.5rem;
+      background: var(--surface); border: 1px solid var(--border-md);
+      border-radius: 20px; padding: 5px 10px;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
+      font-family: var(--sans); box-shadow: var(--shadow);
+      transition: all 0.15s; z-index: 100;
+    }
+    .theme-toggle:hover { color: var(--text); }
+    .theme-toggle svg { width: 14px; height: 14px; }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+      max-width: 640px;
+    }
+
+    .logo {
+      display: inline-flex; align-items: center; gap: 10px;
+      margin-bottom: 1.5rem; text-decoration: none;
+    }
+    .logo-icon { display: flex; align-items: center; justify-content: center; }
+    .logo-img { width: 50px; height: 50px; object-fit: contain; }
+    .logo-img-dark { display: none; }
+    [data-theme="dark"] .logo-img-light { display: none; }
+    [data-theme="dark"] .logo-img-dark { display: block; }
+    .logo-text { font-family: 'AmazDoom', var(--mono); font-size: 3rem; font-weight: normal; letter-spacing: 0.02em; color: var(--text); margin-bottom: -15px; }
+
+    h1 {
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      font-weight: 300;
+      letter-spacing: -0.04em;
+      margin-bottom: 0.6rem;
+    }
+    h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
+
+    .tagline {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .update-date {
+      display: inline-block;
+      margin-top: 0.75rem;
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 3px 10px;
+    }
+
+    .content {
+      width: 100%;
+      max-width: 720px;
+    }
+
+    .article {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+    }
+
+    .article-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .article-num {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .article-title {
+      font-size: 0.95rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .article-body {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.75;
+    }
+
+    .article-body p + p { margin-top: 0.75rem; }
+
+    .article-body ul {
+      padding-left: 1.1rem;
+      margin: 0.5rem 0;
+    }
+
+    .article-body li {
+      margin-bottom: 0.3rem;
+    }
+
+    .article-body strong {
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .article-body a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .article-body a:hover { text-decoration: underline; }
+
+    .info-block {
+      background: var(--accent-dim);
+      border: 1px solid rgba(217,119,87,0.2);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      margin-top: 0.75rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .id-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.35rem 1rem;
+      font-size: 0.82rem;
+      margin-top: 0.5rem;
+    }
+
+    .id-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding-top: 2px;
+    }
+
+    .id-val {
+      color: var(--text);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+      font-size: 0.82rem;
+    }
+    .data-table th {
+      text-align: left;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      padding: 0.5rem 0.75rem 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .data-table td {
+      padding: 0.6rem 0.75rem 0.6rem 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      vertical-align: top;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+
+    footer {
+      margin-top: 3rem;
+      text-align: center;
+      font-size: 0.74rem;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      line-height: 1.8;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <button class="theme-toggle" onclick="toggleTheme()" aria-label="Basculer le thème">
+    <svg id="theme-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"></svg>
+    <span id="theme-label">Thème</span>
+  </button>
+
+  <header>
+    <a href="/" class="logo">
+      <div class="logo-icon">
+        <img src="doomname-logo-light-50.png" class="logo-img logo-img-light" alt="DoomName">
+        <img src="doomname-logo-dark-50.png" class="logo-img logo-img-dark" alt="DoomName">
+      </div>
+      <span class="logo-text">DoomName</span>
+    </a>
+    <h1>Politique de <em>confidentialité</em></h1>
+    <p class="tagline">Comment DoomName collecte, utilise et protège vos données personnelles.</p>
+    <span class="update-date">Mise à jour : 27 juin 2026</span>
+  </header>
+
+  <div class="content">
+
+    <!-- Article 1 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">1</span>
+        <span class="article-title">Responsable du traitement</span>
+      </div>
+      <div class="article-body">
+        <p>Le responsable du traitement des données personnelles collectées via DoomName (application web et mobile) est :</p>
+        <div class="id-grid">
+          <span class="id-label">Nom</span>      <span class="id-val">Hugo Vial-Jaime</span>
+          <span class="id-label">Statut</span>   <span class="id-val">Auto-entrepreneur (microentreprise)</span>
+          <span class="id-label">Enseigne</span> <span class="id-val">Dahu-Concept</span>
+          <span class="id-label">Siège</span>    <span class="id-val">3c route des Fauvins, Gap, 05000 — France</span>
+          <span class="id-label">SIRET</span>    <span class="id-val">80861542100043</span>
+          <span class="id-label">Contact</span>  <span class="id-val"><a href="mailto:dahu.concept@gmail.com">dahu.concept@gmail.com</a></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Article 2 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">2</span>
+        <span class="article-title">Données collectées</span>
+      </div>
+      <div class="article-body">
+        <p>DoomName collecte uniquement les données strictement nécessaires au fonctionnement du service :</p>
+        <table class="data-table">
+          <tr><th>Donnée</th><th>Finalité</th></tr>
+          <tr><td><strong>Adresse e-mail</strong></td><td>Envoi des alertes de disponibilité de domaine et des liens de connexion (magic link)</td></tr>
+          <tr><td><strong>Noms de domaine surveillés</strong></td><td>Permettre la vérification WHOIS et l'envoi des alertes correspondantes</td></tr>
+          <tr><td><strong>Adresse IP</strong></td><td>Journaux serveur, sécurité et prévention des abus — non exploitée commercialement</td></tr>
+          <tr><td><strong>Clé API (si générée)</strong></td><td>Authentification des requêtes vers l'API publique</td></tr>
+        </table>
+        <p style="margin-top:0.75rem">DoomName <strong>ne collecte aucune donnée de géolocalisation précise, de paiement, ni d'identité (nom, prénom)</strong> dans le cadre de l'usage standard du service.</p>
+      </div>
+    </div>
+
+    <!-- Article 3 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">3</span>
+        <span class="article-title">Application mobile — permissions</span>
+      </div>
+      <div class="article-body">
+        <p>L'application mobile DoomName peut demander l'autorisation d'envoyer des <strong>notifications push</strong> afin de vous alerter lorsqu'un domaine surveillé devient disponible. Cette autorisation est optionnelle et peut être révoquée à tout moment depuis les réglages de votre appareil.</p>
+        <p>L'application ne demande aucun accès à votre caméra, votre micro, vos contacts, votre localisation ou vos fichiers personnels.</p>
+      </div>
+    </div>
+
+    <!-- Article 4 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">4</span>
+        <span class="article-title">Sous-traitants et partage de données</span>
+      </div>
+      <div class="article-body">
+        <p>Vos données ne sont <strong>jamais vendues ni partagées à des fins commerciales ou publicitaires</strong>. Elles sont uniquement transmises aux prestataires techniques nécessaires au fonctionnement du service :</p>
+        <table class="data-table">
+          <tr><th>Sous-traitant</th><th>Rôle</th></tr>
+          <tr><td><strong>Railway Inc.</strong> (États-Unis)</td><td>Hébergement de l'application et de la base de données</td></tr>
+          <tr><td><strong>Resend</strong></td><td>Envoi des e-mails (alertes, magic links, clés API)</td></tr>
+        </table>
+        <div class="info-block">
+          L'hébergement étant situé aux États-Unis, un transfert de données hors de l'Union Européenne peut avoir lieu. Railway adhère aux clauses contractuelles types de la Commission Européenne garantissant un niveau de protection adéquat.
+        </div>
+      </div>
+    </div>
+
+    <!-- Article 5 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">5</span>
+        <span class="article-title">Durée de conservation</span>
+      </div>
+      <div class="article-body">
+        <p>Vos données sont conservées :</p>
+        <ul>
+          <li>Tant que vous disposez d'au moins une alerte active sur votre compte ;</li>
+          <li>Pendant une durée maximale de <strong>3 ans</strong> en l'absence de toute alerte active ou d'activité de votre part ;</li>
+          <li>Les liens de connexion (magic links) expirent automatiquement après <strong>15 minutes</strong> et ne sont utilisables qu'une seule fois.</li>
+        </ul>
+        <p>Vous pouvez demander la suppression de vos données à tout moment via l'écran « Mes alertes » de l'application (suppression individuelle) ou en nous contactant directement.</p>
+      </div>
+    </div>
+
+    <!-- Article 6 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">6</span>
+        <span class="article-title">Sécurité des données</span>
+      </div>
+      <div class="article-body">
+        <p>Les données sont stockées dans une base de données PostgreSQL hébergée sur Railway, protégée par chiffrement en transit (TLS/SSL). L'authentification se fait sans mot de passe, via un système de lien à usage unique (magic link), réduisant les risques liés à la gestion de mots de passe.</p>
+      </div>
+    </div>
+
+    <!-- Article 7 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">7</span>
+        <span class="article-title">Vos droits (RGPD)</span>
+      </div>
+      <div class="article-body">
+        <p>Conformément au Règlement (UE) 2016/679 (RGPD) et à la loi Informatique et Libertés, vous disposez des droits suivants concernant vos données personnelles :</p>
+        <ul>
+          <li><strong>Droit d'accès</strong> — connaître les données que nous détenons sur vous ;</li>
+          <li><strong>Droit de rectification</strong> — corriger des informations inexactes ;</li>
+          <li><strong>Droit à l'effacement</strong> — demander la suppression de vos données ;</li>
+          <li><strong>Droit d'opposition</strong> — vous opposer au traitement de vos données ;</li>
+          <li><strong>Droit à la portabilité</strong> — recevoir vos données dans un format structuré.</li>
+        </ul>
+        <p>Pour exercer ces droits, contactez-nous à <a href="mailto:dahu.concept@gmail.com">dahu.concept@gmail.com</a>. En cas de litige non résolu, vous pouvez saisir la <a href="https://www.cnil.fr" target="_blank">CNIL</a> (Commission Nationale de l'Informatique et des Libertés).</p>
+      </div>
+    </div>
+
+    <!-- Article 8 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">8</span>
+        <span class="article-title">Cookies et traceurs</span>
+      </div>
+      <div class="article-body">
+        <p>Le site web DoomName utilise uniquement un stockage local technique (préférence de thème clair/sombre) ne nécessitant pas de consentement au sens de la réglementation cookies. <strong>Aucun cookie publicitaire ou de tracking tiers n'est utilisé.</strong></p>
+        <p>L'application mobile utilise un stockage local sur l'appareil (AsyncStorage) pour mémoriser votre session de connexion, sans transmission à des tiers.</p>
+      </div>
+    </div>
+
+    <!-- Article 9 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">9</span>
+        <span class="article-title">Modifications de cette politique</span>
+      </div>
+      <div class="article-body">
+        <p>Cette politique de confidentialité peut être mise à jour pour refléter des changements dans nos pratiques ou pour des raisons légales. La date de mise à jour en haut de cette page fait foi. En cas de modification substantielle, nous informerons les utilisateurs disposant d'une adresse e-mail enregistrée.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    DoomName v1.0 — Développé par Hugo Vial-Jaime
+    — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
+    &nbsp;·&nbsp; <a href="/">Accueil</a>
+    &nbsp;·&nbsp; <a href="/cgv.html">CGV</a>
+  </footer>
+
+  <script>
+    function applyTheme(dark) {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      const icon = document.getElementById('theme-icon');
+      if (dark) {
+        icon.innerHTML = '<path d="M8 3a5 5 0 1 0 5 5 5.5 5.5 0 0 1-5-5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
+      } else {
+        icon.innerHTML = '<circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>';
+      }
+      localStorage.setItem('dw-theme', dark ? 'dark' : 'light');
+    }
+    function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-theme') !== 'dark'); }
+    (function() {
+      const saved = localStorage.getItem('dw-theme');
+      const h = new Date().getHours();
+      applyTheme(saved ? saved === 'dark' : (h >= 20 || h < 7));
+    })();
+  </script>
+
+</body>
+</html>
