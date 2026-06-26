@@ -375,16 +375,6 @@ app.post('/api/manage/subscribe', async (req, res) => {
     const { rows: totalRows } = await db.query('SELECT COUNT(*) FROM subscriptions WHERE email = $1', [email.toLowerCase()]);
     if (parseInt(totalRows[0].count) >= 200) return res.status(400).json({ error: 'Limite de 200 domaines atteinte — supprimez des entrées pour en ajouter de nouvelles' });
 
-    const whoisData = await whois(domain);
-    const { available } = parseDomainAvailability(whoisData);
-    if (available) {
-      return res.status(400).json({
-        error: 'Ce domaine est déjà disponible',
-        available: true,
-        registrar_url: `https://www.namecheap.com/domains/registration/results/?domain=${domain}`
-      });
-    }
-
     await db.query(`
       INSERT INTO subscriptions (domain, email, active) VALUES ($1, $2, TRUE)
       ON CONFLICT (domain, email) DO UPDATE SET active = TRUE, created_at = NOW()
