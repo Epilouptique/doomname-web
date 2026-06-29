@@ -59,6 +59,21 @@ async function initDB() {
   console.log('✅ Base de données prête');
 }
 
+// ─── Token de review permanent pour Google Play ────────────────────────────────
+const REVIEW_EMAIL = 'playstore-review@doomname.com';
+const REVIEW_TOKEN = 'google-play-review-static-token-doomname-2026';
+
+async function ensureReviewToken() {
+  const { rows } = await db.query('SELECT * FROM magic_links WHERE token = $1', [REVIEW_TOKEN]);
+  if (rows.length === 0) {
+    await db.query(
+      'INSERT INTO magic_links (email, token, expires_at, used) VALUES ($1, $2, $3, FALSE)',
+      [REVIEW_EMAIL, REVIEW_TOKEN, new Date('2040-01-01')]
+    );
+    console.log('✅ Token de review Google Play créé');
+  }
+}
+
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -222,7 +237,6 @@ async function requireApiKey(req, res, next) {
 
     const apiKey = rows[0];
 
-    // Remet le compteur à zéro si on est un nouveau jour
     if (apiKey.last_reset < new Date().toISOString().slice(0, 10)) {
       await db.query(
         'UPDATE api_keys SET requests_today = 0, last_reset = CURRENT_DATE WHERE id = $1',
@@ -231,7 +245,6 @@ async function requireApiKey(req, res, next) {
       apiKey.requests_today = 0;
     }
 
-    // Vérifie la limite journalière
     if (apiKey.requests_today >= DAILY_LIMIT) {
       return res.status(429).json({
         error: 'Limite journalière atteinte (100 requêtes/jour)',
@@ -239,7 +252,6 @@ async function requireApiKey(req, res, next) {
       });
     }
 
-    // Incrémente le compteur
     await db.query(
       'UPDATE api_keys SET requests_today = requests_today + 1 WHERE id = $1',
       [apiKey.id]
@@ -335,7 +347,12 @@ app.get('/api/auth/verify', async (req, res) => {
   try {
     const { rows } = await db.query('SELECT * FROM magic_links WHERE token = $1 AND used = FALSE AND expires_at > NOW()', [token]);
     if (rows.length === 0) return res.status(401).json({ error: 'Lien invalide ou expiré' });
-    await db.query('UPDATE magic_links SET used = TRUE WHERE token = $1', [token]);
+
+    // Le token de review Google Play reste toujours réutilisable
+    if (token !== REVIEW_TOKEN) {
+      await db.query('UPDATE magic_links SET used = TRUE WHERE token = $1', [token]);
+    }
+
     return res.json({ success: true, email: rows[0].email });
   } catch (err) {
     console.error('Erreur verify token:', err.message);
@@ -411,14 +428,12 @@ app.post('/api/manage/subscribe', async (req, res) => {
 
 // ─── Routes API publique v1 ────────────────────────────────────────────────────
 
-// POST /api/developer/register — demande une clé API
 app.post('/api/developer/register', async (req, res) => {
   const { email, label } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'Adresse e-mail invalide' });
   }
 
-  // Limite : 3 clés max par e-mail
   try {
     const { rows: existing } = await db.query(
       'SELECT COUNT(*) FROM api_keys WHERE email = $1 AND active = TRUE',
@@ -443,7 +458,6 @@ app.post('/api/developer/register', async (req, res) => {
   }
 });
 
-// GET /api/v1/check — vérification WHOIS via clé API
 app.get('/api/v1/check', requireApiKey, async (req, res) => {
   const { domain } = req.query;
   if (!domain || !/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) {
@@ -465,7 +479,6 @@ app.get('/api/v1/check', requireApiKey, async (req, res) => {
   }
 });
 
-// POST /api/v1/subscribe — abonnement via clé API
 app.post('/api/v1/subscribe', requireApiKey, async (req, res) => {
   const { domain, email } = req.body;
   if (!domain || !email) return res.status(400).json({ error: 'domain et email requis' });
@@ -488,7 +501,6 @@ app.post('/api/v1/subscribe', requireApiKey, async (req, res) => {
   }
 });
 
-// DELETE /api/v1/unsubscribe — désabonnement via clé API
 app.delete('/api/v1/unsubscribe', requireApiKey, async (req, res) => {
   const { domain, email } = req.body;
   if (!domain || !email) return res.status(400).json({ error: 'domain et email requis' });
@@ -550,6 +562,7 @@ cron.schedule('0 * * * *', async () => {
 // ─── Démarrage ─────────────────────────────────────────────────────────────────
 async function start() {
   await initDB();
+  await ensureReviewToken();
   app.listen(port, () => {
     console.log(`🚀 DoomName en ligne sur http://localhost:${port}`);
     console.log(`   Cron job actif — vérification toutes les heures`);
