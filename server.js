@@ -397,25 +397,6 @@ app.post('/api/subscribe', async (req, res) => {
   }
 });
 
-// ─── Route GET /api/subscriptions (debug) ─────────────────────────────────────
-app.get('/api/subscriptions', async (req, res) => {
-  const { rows } = await db.query('SELECT * FROM subscriptions ORDER BY created_at DESC');
-  res.json(rows);
-});
-
-// ─── Route de test cron (debug) ───────────────────────────────────────────────
-app.get('/api/test-cron', async (req, res) => {
-  const { rows } = await db.query('SELECT email, domain FROM subscriptions WHERE active = TRUE LIMIT 1');
-  if (rows.length === 0) return res.json({ message: 'Aucun abonnement actif' });
-  const { email, domain } = rows[0];
-  try {
-    await sendAlertEmail(email, domain);
-    res.json({ success: true, message: `E-mail envoyé à ${email} pour ${domain}` });
-  } catch (err) {
-    res.json({ error: err.message });
-  }
-});
-
 // ─── Routes Magic Link ─────────────────────────────────────────────────────────
 app.post('/api/auth/request', async (req, res) => {
   const { email } = req.body;
