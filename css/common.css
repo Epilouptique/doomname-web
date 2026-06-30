@@ -216,7 +216,9 @@ input::placeholder { color: var(--text-dim); }
   flex-shrink: 0; transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 .btn-icon:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+.btn-icon.active { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
 .btn-icon svg { width: 15px; height: 15px; }
+.btn-icon:disabled { opacity: 0.35; pointer-events: none; }
 
 /* Spinner */
 .spinner {
@@ -257,7 +259,7 @@ footer a:hover { text-decoration: underline; }
 .modal-box {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow);
-  width: 100%; max-width: 560px; max-height: 80vh;
+  width: 100%; max-width: 780px; max-height: 90vh;
   display: flex; flex-direction: column; overflow: hidden;
 }
 .modal-header {

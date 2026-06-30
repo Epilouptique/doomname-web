@@ -149,7 +149,7 @@ async function sendMagicLinkEmail(email, token) {
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
         <h2 style="color:#d97757">Connexion à DoomName</h2>
         <p>Cliquez sur le bouton correspondant à votre situation :</p>
-        <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>15 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
+        <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
 
         <a href="${webLink}"
            style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
@@ -369,7 +369,7 @@ app.post('/api/auth/request', async (req, res) => {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide' });
 
   const token     = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
 
   try {
     await db.query('INSERT INTO magic_links (email, token, expires_at) VALUES ($1, $2, $3)', [email.toLowerCase(), token, expiresAt]);
