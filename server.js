@@ -191,7 +191,7 @@ async function sendMagicLinkEmail(email, token) {
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
         <h2 style="color:#d97757">Connexion à DoomName</h2>
-        <p>Cliquez sur le bouton ci-dessous pour accéder à vos alertes — sur mobile, l'application s'ouvre automatiquement si elle est installée.</p>
+        <p>Cliquez sur le bouton ci-dessous pour accéder à vos alertes.</p>
         <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
 
         <a href="${link}"
