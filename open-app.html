@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DoomName — Ouverture de l'application</title>
+  <link rel="icon" href="doomname-icon.ico" sizes="any" />
+  <link rel="stylesheet" href="/css/common.css" />
+  <style>
+    body { justify-content: center; }
+    .box { text-align: center; max-width: 360px; }
+    .box p { color: var(--text-muted); font-size: 0.9rem; margin: 1rem 0 1.5rem; line-height: 1.55; }
+    .spinner-lg {
+      width: 28px; height: 28px; border: 3px solid var(--border-md);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 1.25rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="spinner-lg"></div>
+    <h1 style="font-size:1.1rem;font-weight:500">Ouverture de DoomName…</h1>
+    <p>Si l'application ne s'ouvre pas automatiquement, utilisez l'un des liens ci-dessous.</p>
+    <div class="input-row" style="flex-direction:column;gap:10px">
+      <a class="btn btn-primary" id="app-link" style="text-decoration:none">Ouvrir dans l'app</a>
+      <a class="btn btn-outline" id="web-link" style="text-decoration:none">Continuer dans le navigateur</a>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token  = params.get('token') || '';
+
+    const appUrl = `doomname://manage?token=${encodeURIComponent(token)}`;
+    const webUrl = `/manage.html?token=${encodeURIComponent(token)}`;
+
+    document.getElementById('app-link').href = appUrl;
+    document.getElementById('web-link').href = webUrl;
+
+    // Tente d'ouvrir l'app immédiatement ; si elle n'est pas installée,
+    // le navigateur reste sur cette page et l'utilisateur peut continuer
+    // manuellement via les liens ci-dessus, ou être redirigé automatiquement.
+    window.location.href = appUrl;
+
+    // Repli automatique vers le site si l'app ne prend pas le relais
+    // (l'utilisateur n'a alors pas quitté le navigateur après ce délai).
+    setTimeout(() => {
+      if (!document.hidden) window.location.href = webUrl;
+    }, 2000);
+  </script>
+</body>
+</html>

@@ -179,7 +179,10 @@ async function sendAccountDeleteEmail(email, token) {
 async function sendMagicLinkEmail(email, token) {
   const APP_URL = process.env.APP_URL || 'http://localhost:3000';
   const webLink    = `${APP_URL}/manage.html?token=${token}`;
-  const mobileLink = `doomname://manage?token=${token}`;
+  // Les clients mail (Gmail en tête) suppriment les liens vers des schémas
+  // personnalisés (doomname://) : on passe par une page https intermédiaire
+  // qui effectue la redirection vers l'app côté client.
+  const mobileLink = `${APP_URL}/open-app.html?token=${token}`;
 
   await resend.emails.send({
     from: process.env.EMAIL_FROM,
