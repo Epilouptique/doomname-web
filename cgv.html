@@ -10,104 +10,10 @@
   <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#d97757" />
+  <link rel="stylesheet" href="/css/common.css" />
   <style>
-    @font-face {
-      font-family: 'AmazDoom';
-      src: url('fonts/AmazDooMLeft.ttf') format('truetype');
-      font-weight: normal;
-      font-style: normal;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #f9f9f8;
-      --surface: #ffffff;
-      --surface2: #f5f4f0;
-      --border: rgba(0,0,0,0.08);
-      --border-md: rgba(0,0,0,0.13);
-      --text: #1a1a18;
-      --text-muted: #6b6b67;
-      --text-dim: #a8a89f;
-      --accent: #d97757;
-      --accent-hover: #c96644;
-      --accent-dim: rgba(217,119,87,0.10);
-      --mono: 'JetBrains Mono', monospace;
-      --sans: 'Inter', sans-serif;
-      --radius: 10px;
-      --radius-lg: 14px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    }
-
-    [data-theme="dark"] {
-      --bg: #0f0f0e;
-      --surface: #1a1a18;
-      --surface2: #222220;
-      --border: rgba(255,255,255,0.07);
-      --border-md: rgba(255,255,255,0.12);
-      --text: #eceae4;
-      --text-muted: #8a8880;
-      --text-dim: #4a4a46;
-      --accent: #e08060;
-      --accent-hover: #ea9070;
-      --accent-dim: rgba(224,128,96,0.12);
-      --shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }
-
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 3rem 1.5rem 5rem;
-      transition: background 0.2s, color 0.2s;
-    }
-
-    .theme-toggle {
-      position: fixed; top: 1.25rem; right: 1.5rem;
-      background: var(--surface); border: 1px solid var(--border-md);
-      border-radius: 20px; padding: 5px 10px;
-      display: flex; align-items: center; gap: 6px;
-      cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
-      font-family: var(--sans); box-shadow: var(--shadow);
-      transition: all 0.15s; z-index: 100;
-    }
-    .theme-toggle:hover { color: var(--text); }
-    .theme-toggle svg { width: 14px; height: 14px; }
-
-    header {
-      text-align: center;
-      margin-bottom: 3rem;
-      max-width: 640px;
-    }
-
-    .logo {
-      display: inline-flex; align-items: center; gap: 10px;
-      margin-bottom: 1.5rem; text-decoration: none;
-    }
-    .logo-icon { display: flex; align-items: center; justify-content: center; }
-    .logo-img { width: 50px; height: 50px; object-fit: contain; }
-    .logo-img-dark { display: none; }
-    [data-theme="dark"] .logo-img-light { display: none; }
-    [data-theme="dark"] .logo-img-dark { display: block; }
-    .logo-text { font-family: 'AmazDoom', var(--mono); font-size: 3rem; font-weight: normal; letter-spacing: 0.02em; color: var(--text); margin-bottom: -15px; }
-
-    h1 {
-      font-size: clamp(1.5rem, 4vw, 2rem);
-      font-weight: 300;
-      letter-spacing: -0.04em;
-      margin-bottom: 0.6rem;
-    }
-    h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
-
-    .tagline {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
+    header { max-width: 640px; }
+    h1 { font-size: clamp(1.5rem, 4vw, 2rem); }
 
     .update-date {
       display: inline-block;
@@ -219,17 +125,6 @@
     }
 
     hr { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0 1rem; }
-
-    footer {
-      margin-top: 3rem;
-      text-align: center;
-      font-size: 0.74rem;
-      color: var(--text-dim);
-      font-family: var(--mono);
-      line-height: 1.8;
-    }
-    footer a { color: var(--accent); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>

@@ -26,14 +26,16 @@ const db = new Pool({
 async function initDB() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS subscriptions (
-      id         SERIAL PRIMARY KEY,
-      domain     VARCHAR(255) NOT NULL,
-      email      VARCHAR(255) NOT NULL,
-      active     BOOLEAN DEFAULT TRUE,
-      created_at TIMESTAMPTZ DEFAULT NOW(),
+      id          SERIAL PRIMARY KEY,
+      domain      VARCHAR(255) NOT NULL,
+      email       VARCHAR(255) NOT NULL,
+      active      BOOLEAN DEFAULT TRUE,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      last_status VARCHAR(32) DEFAULT 'taken',
       UNIQUE(domain, email)
     )
   `);
+  await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_status VARCHAR(32) DEFAULT 'taken'`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS magic_links (
       id         SERIAL PRIMARY KEY,
@@ -98,6 +100,36 @@ async function sendAlertEmail(email, domain) {
         <p style="color:#999;font-size:0.8rem;margin-top:2rem">
           Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.<br/>
           Votre alerte a été désactivée automatiquement.
+        </p>
+      </div>
+    `
+  });
+}
+
+const STATUS_LABELS = {
+  gracePeriod:      { title: 'en grâce de renouvellement',     detail: "Son propriétaire n'a pas encore renouvelé le domaine. Il dispose d'un délai pour le faire avant qu'il ne passe en période de rédemption." },
+  redemptionPeriod: { title: 'en période de rédemption',        detail: "Le domaine n'a pas été renouvelé et entre dans sa dernière phase avant suppression. Il pourrait bientôt devenir disponible." },
+  pendingDelete:    { title: 'sur le point d\'être supprimé',   detail: "Le domaine est en cours de suppression définitive par le registre. Il devrait devenir disponible très prochainement." },
+};
+
+async function sendStatusChangeEmail(email, domain, status) {
+  const info = STATUS_LABELS[status];
+  if (!info) return;
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM,
+    to:   email,
+    subject: `🟠 ${domain} est désormais ${info.title}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
+        <h2 style="color:#ba7517">Changement d'état détecté</h2>
+        <p>Le domaine que vous surveillez vient de changer de statut :</p>
+        <div style="background:#fbf3e8;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
+          <strong style="font-size:1.2rem;font-family:monospace">${domain}</strong>
+          <p style="margin-top:0.5rem;color:#555">${info.detail}</p>
+        </div>
+        <p>Son ancien propriétaire semble avoir abandonné son renouvellement. Restez attentif, une alerte vous sera envoyée dès qu'il sera totalement disponible.</p>
+        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+          Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
         </p>
       </div>
     `
@@ -198,7 +230,7 @@ function parseDomainAvailability(whoisData) {
   }
 
   const freeSignals = ['no match','not found','no entries found','status: free','status: available','object does not exist','no object found'];
-  if (freeSignals.some(s => raw.includes(s))) return { available: true };
+  if (freeSignals.some(s => raw.includes(s))) return { available: true, status: 'available' };
 
   const takenSignals = ['registrar','creation date','created','registrant','name server','nameserver','status: active','status: ok'];
   const isTaken = takenSignals.some(s => raw.includes(s));
@@ -208,8 +240,18 @@ function parseDomainAvailability(whoisData) {
     whoisData.expirationDate || whoisData['expiry date'] ||
     whoisData['paid-till'] || null;
 
+  // Détection des statuts EPP de fin de vie d'un domaine (grace period / redemption / pending delete)
+  // afin d'alerter les utilisateurs avant la libération effective du domaine.
+  let status = isTaken ? 'taken' : 'available';
+  if (isTaken) {
+    if (raw.includes('pendingdelete') || raw.includes('pending delete')) status = 'pendingDelete';
+    else if (raw.includes('redemptionperiod') || raw.includes('redemption period')) status = 'redemptionPeriod';
+    else if (raw.includes('autorenewperiod') || raw.includes('auto-renew') || raw.includes('renewperiod') || raw.includes('grace period')) status = 'gracePeriod';
+  }
+
   return {
     available: !isTaken,
+    status,
     expiry: expiry ? new Date(expiry).toLocaleDateString('fr-FR') : null
   };
 }
@@ -365,7 +407,7 @@ app.get('/api/manage/subscriptions', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
   try {
-    const { rows } = await db.query('SELECT id, domain, active, created_at FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
+    const { rows } = await db.query('SELECT id, domain, active, created_at, last_status FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
     return res.json(rows);
   } catch (err) { return res.status(500).json({ error: 'Erreur serveur' }); }
 });
@@ -422,6 +464,76 @@ app.post('/api/manage/subscribe', async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('Erreur manage/subscribe:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── WHOIS complet (consultation depuis "mes alertes") ────────────────────────
+app.get('/api/manage/whois', async (req, res) => {
+  const { domain, email } = req.query;
+  if (!domain || !email) return res.status(400).json({ error: 'Domaine et e-mail requis' });
+
+  try {
+    const { rows } = await db.query('SELECT id FROM subscriptions WHERE domain = $1 AND email = $2', [domain.toLowerCase(), email.toLowerCase()]);
+    if (rows.length === 0) return res.status(404).json({ error: "Ce domaine n'est pas dans votre liste de surveillance" });
+
+    const whoisData = await getWhoisWithCache(domain.toLowerCase());
+    const raw = Object.entries(whoisData || {}).map(([k, v]) => `${k}: ${v}`).join('\n') || 'Aucune donnée WHOIS disponible.';
+    return res.json({ domain, raw });
+  } catch (err) {
+    return res.status(503).json({ error: 'Service WHOIS temporairement indisponible' });
+  }
+});
+
+// ─── Export CSV ─────────────────────────────────────────────────────────────────
+app.get('/api/manage/export', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+
+  try {
+    const { rows } = await db.query('SELECT domain, active, last_status, created_at FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
+    const header = 'domain,active,status,created_at';
+    const lines  = rows.map(r => `${r.domain},${r.active},${r.last_status || ''},${r.created_at.toISOString()}`);
+    const csv = [header, ...lines].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="doomname-alertes.csv"');
+    return res.send(csv);
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── Import CSV ─────────────────────────────────────────────────────────────────
+app.post('/api/manage/import', async (req, res) => {
+  const { email, domains } = req.body;
+  if (!email || !Array.isArray(domains) || domains.length === 0) {
+    return res.status(400).json({ error: 'E-mail et liste de domaines requis' });
+  }
+
+  const domainRegex = /^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/;
+  const validDomains = [...new Set(domains.map(d => String(d).toLowerCase().trim()))].filter(d => domainRegex.test(d));
+
+  try {
+    const { rows: totalRows } = await db.query('SELECT COUNT(*) FROM subscriptions WHERE email = $1', [email.toLowerCase()]);
+    const currentTotal = parseInt(totalRows[0].count);
+    const room = Math.max(0, 200 - currentTotal);
+
+    const toImport = validDomains.slice(0, room);
+    let imported = 0;
+    for (const domain of toImport) {
+      const result = await db.query(`
+        INSERT INTO subscriptions (domain, email, active) VALUES ($1, $2, TRUE)
+        ON CONFLICT (domain, email) DO NOTHING
+      `, [domain, email.toLowerCase()]);
+      if (result.rowCount > 0) imported++;
+    }
+
+    const skipped = domains.length - imported;
+    console.log(`📬 Import CSV : ${imported} domaine(s) ajoutés pour ${email}`);
+    return res.json({ success: true, imported, skipped });
+  } catch (err) {
+    console.error('Erreur import CSV:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -532,11 +644,12 @@ cron.schedule('0 * * * *', async () => {
   for (const { domain } of rows) {
     try {
       const whoisData = await whois(domain);
-      const { available } = parseDomainAvailability(whoisData);
+      const { available, status } = parseDomainAvailability(whoisData);
+
+      const { rows: subs } = await db.query('SELECT email, last_status FROM subscriptions WHERE domain = $1 AND active = TRUE', [domain]);
 
       if (available) {
         console.log(`✅ ${domain} est maintenant disponible !`);
-        const { rows: subs } = await db.query('SELECT email FROM subscriptions WHERE domain = $1 AND active = TRUE', [domain]);
         for (const { email } of subs) {
           try {
             await sendAlertEmail(email, domain);
@@ -545,9 +658,20 @@ cron.schedule('0 * * * *', async () => {
             console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
           }
         }
-        await db.query('UPDATE subscriptions SET active = FALSE WHERE domain = $1', [domain]);
+        await db.query('UPDATE subscriptions SET active = FALSE, last_status = $2 WHERE domain = $1', [domain, status]);
       } else {
-        console.log(`⏳ ${domain} toujours pris`);
+        console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
+        for (const { email, last_status } of subs) {
+          if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
+            try {
+              await sendStatusChangeEmail(email, domain, status);
+              console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
+            } catch (mailErr) {
+              console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
+            }
+          }
+        }
+        await db.query('UPDATE subscriptions SET last_status = $2 WHERE domain = $1', [domain, status]);
       }
 
       await new Promise(r => setTimeout(r, 1000));

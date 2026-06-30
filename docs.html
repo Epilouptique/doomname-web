@@ -10,82 +10,18 @@
   <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#d97757" />
+  <link rel="stylesheet" href="/css/common.css" />
   <style>
-    @font-face {
-      font-family: 'AmazDoom';
-      src: url('fonts/AmazDooMLeft.ttf') format('truetype');
-      font-weight: normal;
-      font-style: normal;
-    }
+    :root { --surface-code: #1a1a18; }
+    [data-theme="dark"] { --surface-code: #0d0d0c; }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #f9f9f8;
-      --surface: #ffffff;
-      --surface2: #f5f4f0;
-      --surface-code: #1a1a18;
-      --border: rgba(0,0,0,0.08);
-      --border-md: rgba(0,0,0,0.13);
-      --text: #1a1a18;
-      --text-muted: #6b6b67;
-      --text-dim: #a8a89f;
-      --accent: #d97757;
-      --accent-hover: #c96644;
-      --accent-dim: rgba(217,119,87,0.10);
-      --success: #1d9e75;
-      --success-dim: rgba(29,158,117,0.10);
-      --success-border: rgba(29,158,117,0.25);
-      --danger: #e24b4a;
-      --danger-dim: rgba(226,75,74,0.10);
-      --danger-border: rgba(226,75,74,0.25);
-      --info: #185fa5;
-      --info-dim: rgba(24,95,165,0.10);
-      --info-border: rgba(24,95,165,0.25);
-      --warning: #ba7517;
-      --warning-dim: rgba(186,117,23,0.10);
-      --warning-border: rgba(186,117,23,0.25);
-      --mono: 'JetBrains Mono', monospace;
-      --sans: 'Inter', sans-serif;
-      --radius: 10px;
-      --radius-lg: 14px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
-
-    [data-theme="dark"] {
-      --bg: #0f0f0e;
-      --surface: #1a1a18;
-      --surface2: #222220;
-      --surface-code: #0d0d0c;
-      --border: rgba(255,255,255,0.07);
-      --border-md: rgba(255,255,255,0.12);
-      --text: #eceae4;
-      --text-muted: #8a8880;
-      --text-dim: #4a4a46;
-      --accent: #e08060;
-      --accent-hover: #ea9070;
-      --accent-dim: rgba(224,128,96,0.12);
-      --success: #34c97a;
-      --success-dim: rgba(52,201,122,0.10);
-      --success-border: rgba(52,201,122,0.25);
-      --danger: #f26b6a;
-      --danger-dim: rgba(242,107,106,0.10);
-      --danger-border: rgba(242,107,106,0.25);
-      --info: #378add;
-      --info-dim: rgba(55,138,221,0.12);
-      --info-border: rgba(55,138,221,0.25);
-      --warning: #ef9f27;
-      --warning-dim: rgba(239,159,39,0.10);
-      --warning-border: rgba(239,159,39,0.25);
-      --shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }
-
+    /* Cette page a sa propre mise en page (sidebar) ; on neutralise le centrage
+       en colonne du fichier commun, conçu pour les pages "carte centrée". */
     body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text);
+      display: block;
+      min-height: auto;
+      padding: 0;
       line-height: 1.6;
-      transition: background 0.2s, color 0.2s;
     }
 
     /* Theme toggle */

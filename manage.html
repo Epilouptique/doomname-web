@@ -8,174 +8,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="icon" href="doomname-icon.ico" sizes="any" />
   <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
+  <link rel="stylesheet" href="/css/common.css" />
   <style>
-    @font-face {
-      font-family: 'AmazDoom';
-      src: url('fonts/AmazDooMLeft.ttf') format('truetype');
-      font-weight: normal;
-      font-style: normal;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg: #f9f9f8;
-      --surface: #ffffff;
-      --surface2: #f5f4f0;
-      --border: rgba(0,0,0,0.08);
-      --border-md: rgba(0,0,0,0.13);
-      --text: #1a1a18;
-      --text-muted: #6b6b67;
-      --text-dim: #a8a89f;
-      --accent: #d97757;
-      --accent-hover: #c96644;
-      --accent-dim: rgba(217,119,87,0.10);
-      --success: #1d9e75;
-      --success-dim: rgba(29,158,117,0.10);
-      --success-border: rgba(29,158,117,0.25);
-      --danger: #e24b4a;
-      --danger-dim: rgba(226,75,74,0.10);
-      --danger-border: rgba(226,75,74,0.25);
-      --warning: #ba7517;
-      --warning-dim: rgba(186,117,23,0.10);
-      --warning-border: rgba(186,117,23,0.25);
-      --info: #185fa5;
-      --info-dim: rgba(24,95,165,0.10);
-      --info-border: rgba(24,95,165,0.25);
-      --mono: 'JetBrains Mono', monospace;
-      --sans: 'Inter', sans-serif;
-      --radius: 10px;
-      --radius-lg: 14px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    }
-
-    [data-theme="dark"] {
-      --bg: #0f0f0e;
-      --surface: #1a1a18;
-      --surface2: #222220;
-      --border: rgba(255,255,255,0.07);
-      --border-md: rgba(255,255,255,0.12);
-      --text: #eceae4;
-      --text-muted: #8a8880;
-      --text-dim: #4a4a46;
-      --accent: #e08060;
-      --accent-hover: #ea9070;
-      --accent-dim: rgba(224,128,96,0.12);
-      --success: #34c97a;
-      --success-dim: rgba(52,201,122,0.10);
-      --success-border: rgba(52,201,122,0.25);
-      --danger: #f26b6a;
-      --danger-dim: rgba(242,107,106,0.10);
-      --danger-border: rgba(242,107,106,0.25);
-      --warning: #ef9f27;
-      --warning-dim: rgba(239,159,39,0.10);
-      --warning-border: rgba(239,159,39,0.25);
-      --info: #378add;
-      --info-dim: rgba(55,138,221,0.12);
-      --info-border: rgba(55,138,221,0.25);
-      --shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }
-
-    body {
-      font-family: var(--sans);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex; flex-direction: column; align-items: center;
-      padding: 3rem 1.5rem 5rem;
-      transition: background 0.2s, color 0.2s;
-    }
-
-    .theme-toggle {
-      position: fixed; top: 1.25rem; right: 1.5rem;
-      background: var(--surface); border: 1px solid var(--border-md);
-      border-radius: 20px; padding: 5px 10px;
-      display: flex; align-items: center; gap: 6px;
-      cursor: pointer; font-size: 0.75rem; color: var(--text-muted);
-      font-family: var(--sans); box-shadow: var(--shadow);
-      transition: all 0.15s; z-index: 100;
-    }
-    .theme-toggle:hover { color: var(--text); }
-    .theme-toggle svg { width: 14px; height: 14px; flex-shrink: 0; }
-
-    header { text-align: center; margin-bottom: 3rem; }
-
-    .logo {
-      display: inline-flex; align-items: center; gap: 10px;
-      margin-bottom: 1.25rem; text-decoration: none;
-    }
-    .logo-icon { display: flex; align-items: center; justify-content: center; }
-    .logo-img { width: 50px; height: 50px; object-fit: contain; }
-    .logo-img-dark { display: none; }
-    [data-theme="dark"] .logo-img-light { display: none; }
-    [data-theme="dark"] .logo-img-dark { display: block; }
-    .logo-text { font-family: 'AmazDoom', var(--mono); font-size: 3rem; font-weight: normal; letter-spacing: 0.02em; color: var(--text); margin-bottom: -15px; }
-
-    h1 { font-size: clamp(1.4rem, 3vw, 1.9rem); font-weight: 300; letter-spacing: -0.03em; margin-bottom: 0.4rem; }
-    h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
-    .subtitle { font-size: 0.88rem; color: var(--text-muted); font-weight: 400; }
-
-    .card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); width: 100%; max-width: 600px;
-      box-shadow: var(--shadow); overflow: hidden;
-    }
-    .card-section { padding: 1.5rem 1.75rem; }
-    .card-section + .card-section { border-top: 1px solid var(--border); }
-
-    .section-tag {
-      display: inline-block; font-family: var(--mono);
-      font-size: 0.67rem; font-weight: 500;
-      letter-spacing: 0.08em; text-transform: uppercase;
-      color: var(--text-dim); margin-bottom: 0.9rem;
-    }
-
-    input[type="email"], input[type="text"] {
-      font-family: var(--mono); font-size: 0.875rem;
-      background: var(--surface2); border: 1px solid var(--border-md);
-      border-radius: var(--radius); color: var(--text);
-      padding: 0.65rem 0.9rem; outline: none; width: 100%;
-      transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
-    input::placeholder { color: var(--text-dim); }
-
-    .input-row { display: flex; gap: 7px; }
-
-    .btn {
-      font-family: var(--sans); font-size: 0.84rem; font-weight: 500;
-      border: none; border-radius: var(--radius); padding: 0.65rem 1.1rem;
-      cursor: pointer; transition: all 0.15s; white-space: nowrap;
-    }
-    .btn:active { transform: scale(0.98); }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-    .btn-success { background: var(--success); color: #fff; }
-    .btn-success:hover { opacity: 0.88; }
-    .btn-success:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-    .btn-outline {
-      background: transparent; border: 1px solid var(--border-md);
-      color: var(--text-muted); padding: 0.4rem 0.85rem; font-size: 0.78rem;
-    }
-    .btn-outline:hover { border-color: var(--border-md); color: var(--text); }
-
-    .spinner {
-      display: inline-block; width: 13px; height: 13px;
-      border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff;
-      border-radius: 50%; animation: spin 0.7s linear infinite;
-      vertical-align: middle; margin-right: 5px;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .alert {
-      border-radius: var(--radius); padding: 0.8rem 0.9rem;
-      font-size: 0.83rem; margin-top: 0.7rem; display: none; line-height: 1.5;
-    }
-    .alert a { color: inherit; font-weight: 500; }
-    .alert-success { background: var(--success-dim); border: 1px solid var(--success-border); color: var(--success); }
-    .alert-error   { background: var(--danger-dim);  border: 1px solid var(--danger-border);  color: var(--danger); }
-    .alert-info    { background: var(--info-dim);    border: 1px solid var(--info-border);    color: var(--info); }
+    .card { max-width: 600px; }
 
     /* Filtre */
     .filter-row { display: flex; gap: 5px; margin-bottom: 0.9rem; }
@@ -211,7 +46,21 @@
     }
     .domain-meta { font-size: 0.72rem; color: var(--text-dim); }
 
+    /* Badge de statut (grace period / redemption / pending delete) */
+    .status-badge {
+      display: inline-block; font-family: var(--mono); font-size: 0.65rem;
+      font-weight: 500; padding: 1px 7px; border-radius: 10px;
+      margin-left: 6px; vertical-align: middle;
+    }
+    .status-badge.grace      { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning-border); }
+    .status-badge.redemption { background: var(--danger-dim);  color: var(--danger);  border: 1px solid var(--danger-border); }
+    .status-badge.pendingdelete { background: var(--success-dim); color: var(--success); border: 1px solid var(--success-border); }
+
     .domain-actions { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+
+    /* Import / export CSV */
+    .csv-row { display: flex; gap: 7px; margin-top: 0.75rem; }
+    .csv-row input[type="file"] { display: none; }
 
     /* Switch */
     .switch { position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0; }
@@ -249,14 +98,6 @@
 
     .view { display: none; width: 100%; max-width: 600px; }
     .view.active { display: block; }
-
-    footer {
-      margin-top: 2.5rem; text-align: center;
-      font-size: 0.74rem; color: var(--text-dim);
-      font-family: var(--mono); line-height: 1.8;
-    }
-    footer a { color: var(--accent); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -350,11 +191,35 @@
         <div class="alert alert-success" id="add-success"></div>
       </div>
 
+      <div class="card-section">
+        <span class="section-tag">Importer / exporter</span>
+        <div class="csv-row">
+          <button class="btn btn-outline" onclick="exportCsv()">Exporter en CSV</button>
+          <button class="btn btn-outline" onclick="document.getElementById('csv-file').click()">Importer un CSV</button>
+          <input type="file" id="csv-file" accept=".csv,text/csv" onchange="importCsv(this.files[0])" />
+        </div>
+        <div class="alert alert-error"   id="csv-error"></div>
+        <div class="alert alert-success" id="csv-success"></div>
+      </div>
+
       <div class="card-section" style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:0.76rem;color:var(--text-dim);font-family:var(--mono)" id="user-email-display"></span>
         <button class="btn btn-outline" onclick="logout()">Se déconnecter</button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Modal WHOIS -->
+  <div class="modal-overlay" id="whois-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span class="modal-title" id="whois-modal-title">WHOIS</span>
+        <button class="modal-close" onclick="closeWhois()" aria-label="Fermer">✕</button>
+      </div>
+      <div class="modal-body">
+        <pre id="whois-modal-body">Chargement…</pre>
+      </div>
     </div>
   </div>
 
@@ -495,10 +360,16 @@
       list.innerHTML = filtered.map(sub => `
         <div class="domain-item ${sub.active ? '' : 'inactive'}" id="item-${sub.id}">
           <div class="domain-info">
-            <span class="domain-name">${sub.domain}</span>
+            <span class="domain-name">${sub.domain}${statusBadge(sub.last_status)}</span>
             <span class="domain-meta">Ajouté le ${formatDate(sub.created_at)}</span>
           </div>
           <div class="domain-actions">
+            <button class="btn-icon" onclick="showWhois('${sub.domain}')" title="Voir le WHOIS complet">
+              <svg viewBox="0 0 16 16" fill="none">
+                <circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.3"/>
+                <path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+            </button>
             <label class="switch" title="${sub.active ? 'Désactiver' : 'Réactiver'}">
               <input type="checkbox" ${sub.active ? 'checked' : ''} onchange="toggleSubscription(${sub.id}, this)" />
               <div class="switch-track"></div>
@@ -512,6 +383,17 @@
           </div>
         </div>
       `).join('');
+    }
+
+    function statusBadge(status) {
+      const labels = {
+        gracePeriod: ['grace', 'Grâce'],
+        redemptionPeriod: ['redemption', 'Rédemption'],
+        pendingDelete: ['pendingdelete', 'Bientôt libre'],
+      };
+      if (!status || !labels[status]) return '';
+      const [cls, label] = labels[status];
+      return `<span class="status-badge ${cls}">${label}</span>`;
     }
 
     async function toggleSubscription(id, checkbox) {
@@ -529,6 +411,56 @@
         const res = await fetch(`${API_BASE}/api/manage/subscription/${id}?email=${encodeURIComponent(userEmail)}`, { method: 'DELETE' });
         if (res.ok) await loadSubscriptions();
       } catch { alert('Erreur lors de la suppression.'); }
+    }
+
+    // ─── WHOIS complet ────────────────────────────────────────────────────────
+    async function showWhois(domain) {
+      document.getElementById('whois-modal-title').textContent = domain;
+      document.getElementById('whois-modal-body').textContent = 'Chargement…';
+      document.getElementById('whois-modal').classList.add('active');
+      try {
+        const res  = await fetch(`${API_BASE}/api/manage/whois?domain=${encodeURIComponent(domain)}&email=${encodeURIComponent(userEmail)}`);
+        const data = await res.json();
+        document.getElementById('whois-modal-body').textContent = data.raw || data.error || 'Aucune donnée disponible.';
+      } catch {
+        document.getElementById('whois-modal-body').textContent = 'Erreur de connexion au serveur.';
+      }
+    }
+    function closeWhois() { document.getElementById('whois-modal').classList.remove('active'); }
+    document.getElementById('whois-modal').addEventListener('click', e => { if (e.target.id === 'whois-modal') closeWhois(); });
+
+    // ─── Export / import CSV ──────────────────────────────────────────────────
+    function exportCsv() {
+      window.location.href = `${API_BASE}/api/manage/export?email=${encodeURIComponent(userEmail)}`;
+    }
+
+    async function importCsv(file) {
+      hideAlerts('csv-error', 'csv-success');
+      if (!file) return;
+
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      const domains = lines
+        .map(l => l.split(',')[0].trim().toLowerCase())
+        .filter(d => d && d !== 'domain' && /^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(d));
+
+      if (domains.length === 0) { showAlert('csv-error', 'Aucun domaine valide trouvé dans ce fichier.'); document.getElementById('csv-file').value = ''; return; }
+
+      try {
+        const res  = await fetch(`${API_BASE}/api/manage/import`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: userEmail, domains })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showAlert('csv-success', `✓ ${data.imported} domaine(s) importé(s)${data.skipped ? `, ${data.skipped} ignoré(s) (limite atteinte ou doublon)` : ''}.`);
+          await loadSubscriptions();
+        } else {
+          showAlert('csv-error', data.error || 'Une erreur est survenue.');
+        }
+      } catch { showAlert('csv-error', 'Impossible de contacter le serveur.'); }
+
+      document.getElementById('csv-file').value = '';
     }
 
     async function addDomain() {
