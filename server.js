@@ -270,7 +270,19 @@ function parseDomainAvailability(whoisData) {
   if (freeSignals.some(s => raw.includes(s))) return { available: true, status: 'available' };
 
   const takenSignals = ['registrar','creation date','created','registrant','name server','nameserver','status: active','status: ok'];
-  const isTaken = takenSignals.some(s => raw.includes(s));
+  const hasTakenKeyword = takenSignals.some(s => raw.includes(s));
+
+  // Repli robuste (corrige les faux positifs "disponible" sur les TLD à WHOIS
+  // minimaliste type .eu/.de, où les champs s'appellent "organisation"/"name"
+  // plutôt que "registrar"/"creation date" et ne matchent donc aucun mot-clé
+  // ci-dessus). Un domaine réellement libre renvoie une réponse quasi vide ;
+  // dès qu'il y a un minimum de contenu structuré, on considère le domaine
+  // comme pris par défaut plutôt que disponible — le risque d'un faux négatif
+  // (alerte manquée) est largement préférable à celui d'un faux positif
+  // (utilisateur poussé à tenter d'enregistrer un domaine déjà pris).
+  const hasSubstantialData = !hasMinimalFields || dataSize >= 200;
+
+  const isTaken = hasTakenKeyword || hasSubstantialData;
 
   const expiry =
     whoisData.registryExpiryDate || whoisData.expiresOn ||
