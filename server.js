@@ -36,6 +36,7 @@ async function initDB() {
     )
   `);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_status VARCHAR(32) DEFAULT 'taken'`);
+  await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_confirmation_since TIMESTAMPTZ`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS magic_links (
       id         SERIAL PRIMARY KEY,
@@ -107,12 +108,7 @@ async function sendAlertEmail(email, domain) {
         <div style="background:#f0faf5;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
           <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
         </div>
-        <p>Dépêchez-vous de l'enregistrer avant qu'il ne soit pris !</p>
-        <a href="https://www.namecheap.com/domains/registration/results/?domain=${domain}"
-           style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
-                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:0.5rem">
-          Enregistrer ce domaine →
-        </a>
+        <p>Réservez-le rapidement auprès du registrar de votre choix avant qu'il ne soit pris !</p>
         <p style="color:#999;font-size:0.8rem;margin-top:2rem">
           Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.<br/>
           Votre alerte a été désactivée automatiquement.
@@ -242,6 +238,14 @@ async function sendApiKeyEmail(email, key, label) {
 // ─── Cache WHOIS (évite le rate-limiting des registrars) ──────────────────────
 const whoisCache = new Map();
 const CACHE_DURATION_MS = 60 * 1000; // 60 secondes
+
+// ─── Confirmation différée avant alerte "disponible" ───────────────────────────
+// Certains domaines à forte valeur sont recapturés en quelques secondes par des
+// bots de drop-catching dès leur libération. Plutôt que d'alerter dès la
+// première détection "disponible" du cron horaire, on attend 10 minutes et on
+// revérifie ce domaine précis avant de notifier — sans changer la fréquence du
+// cron principal.
+const CONFIRMATION_DELAY_MS = 10 * 60 * 1000; // 10 minutes
 
 async function getWhoisWithCache(domain) {
   const cached = whoisCache.get(domain);
@@ -763,6 +767,84 @@ app.delete('/api/v1/unsubscribe', requireApiKey, async (req, res) => {
   }
 });
 
+// ─── Confirmation différée (suite) ─────────────────────────────────────────────
+async function confirmAvailability(domain) {
+  console.log(`🔁 [${new Date().toISOString()}] Confirmation différée pour ${domain}…`);
+  try {
+    const { rows: subs } = await db.query(
+      'SELECT email FROM subscriptions WHERE domain = $1 AND active = TRUE AND pending_confirmation_since IS NOT NULL',
+      [domain]
+    );
+    if (subs.length === 0) {
+      console.log(`  (plus rien en attente pour ${domain}, abandon)`);
+      return;
+    }
+
+    const whoisData = await whois(domain);
+    const { available, status } = parseDomainAvailability(whoisData);
+
+    if (available) {
+      console.log(`✅ ${domain} confirmé disponible après le délai de 10 minutes`);
+      for (const { email } of subs) {
+        try {
+          const settings = await getUserSettings(email);
+          if (settings.email_alerts_enabled) {
+            await sendAlertEmail(email, domain);
+            console.log(`  📧 Alerte envoyée à ${email}`);
+          } else {
+            console.log(`  🔕 Alertes mail désactivées pour ${email}, envoi ignoré`);
+          }
+        } catch (mailErr) {
+          console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
+        }
+      }
+      await db.query(
+        'UPDATE subscriptions SET active = FALSE, last_status = $2, pending_confirmation_since = NULL WHERE domain = $1',
+        [domain, status]
+      );
+    } else {
+      console.log(`↩️  ${domain} a été repris avant la fin du délai de confirmation — alerte annulée (statut : ${status})`);
+      await db.query(
+        'UPDATE subscriptions SET last_status = $2, pending_confirmation_since = NULL WHERE domain = $1',
+        [domain, status]
+      );
+    }
+  } catch (err) {
+    console.error(`Erreur confirmation différée pour ${domain}:`, err.message);
+  }
+}
+
+function scheduleConfirmation(domain, delayMs = CONFIRMATION_DELAY_MS) {
+  setTimeout(() => { confirmAvailability(domain); }, delayMs);
+}
+
+// Rattrape, au démarrage du serveur, les confirmations différées qui auraient
+// été perdues lors d'un redémarrage (Railway redéploie régulièrement).
+async function recoverPendingConfirmations() {
+  try {
+    const { rows } = await db.query(
+      `SELECT DISTINCT domain, pending_confirmation_since FROM subscriptions
+       WHERE active = TRUE AND pending_confirmation_since IS NOT NULL`
+    );
+    if (rows.length === 0) return;
+
+    console.log(`🔁 ${rows.length} domaine(s) en attente de confirmation à reprendre après redémarrage`);
+    for (const { domain, pending_confirmation_since } of rows) {
+      const elapsed   = Date.now() - new Date(pending_confirmation_since).getTime();
+      const remaining = CONFIRMATION_DELAY_MS - elapsed;
+      if (remaining <= 0) {
+        console.log(`  ⏩ ${domain} : délai déjà écoulé, vérification immédiate`);
+        confirmAvailability(domain);
+      } else {
+        console.log(`  ⏱️  ${domain} : reprogrammé dans ${Math.round(remaining / 1000)}s`);
+        scheduleConfirmation(domain, remaining);
+      }
+    }
+  } catch (err) {
+    console.error('Erreur récupération des confirmations en attente:', err.message);
+  }
+}
+
 // ─── Cron job — vérification toutes les heures ─────────────────────────────────
 cron.schedule('0 * * * *', async () => {
   console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
@@ -781,24 +863,17 @@ cron.schedule('0 * * * *', async () => {
       const whoisData = await whois(domain);
       const { available, status } = parseDomainAvailability(whoisData);
 
-      const { rows: subs } = await db.query('SELECT email, last_status FROM subscriptions WHERE domain = $1 AND active = TRUE', [domain]);
+      const { rows: subs } = await db.query('SELECT email, last_status, pending_confirmation_since FROM subscriptions WHERE domain = $1 AND active = TRUE', [domain]);
 
       if (available) {
-        console.log(`✅ ${domain} est maintenant disponible !`);
-        for (const { email } of subs) {
-          try {
-            const settings = await getUserSettings(email);
-            if (settings.email_alerts_enabled) {
-              await sendAlertEmail(email, domain);
-              console.log(`  📧 Alerte envoyée à ${email}`);
-            } else {
-              console.log(`  🔕 Alertes mail désactivées pour ${email}, envoi ignoré`);
-            }
-          } catch (mailErr) {
-            console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
-          }
+        const alreadyPending = subs.some(s => s.pending_confirmation_since);
+        if (alreadyPending) {
+          console.log(`⏳ ${domain} déjà en attente de confirmation, pas de nouvelle vérification programmée`);
+        } else {
+          console.log(`🕒 ${domain} semble disponible — confirmation différée de 10 min avant alerte`);
+          await db.query('UPDATE subscriptions SET pending_confirmation_since = NOW() WHERE domain = $1 AND active = TRUE', [domain]);
+          scheduleConfirmation(domain);
         }
-        await db.query('UPDATE subscriptions SET active = FALSE, last_status = $2 WHERE domain = $1', [domain, status]);
       } else {
         console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
         for (const { email, last_status } of subs) {
@@ -816,7 +891,7 @@ cron.schedule('0 * * * *', async () => {
             }
           }
         }
-        await db.query('UPDATE subscriptions SET last_status = $2 WHERE domain = $1', [domain, status]);
+        await db.query('UPDATE subscriptions SET last_status = $2, pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
       }
 
       await new Promise(r => setTimeout(r, 1000));
@@ -832,6 +907,7 @@ cron.schedule('0 * * * *', async () => {
 async function start() {
   await initDB();
   await ensureReviewToken();
+  await recoverPendingConfirmations();
   app.listen(port, () => {
     console.log(`🚀 DoomName en ligne sur http://localhost:${port}`);
     console.log(`   Cron job actif — vérification toutes les heures`);
