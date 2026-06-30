@@ -27,6 +27,9 @@
     .counter { font-family: var(--mono); font-size: 0.73rem; color: var(--text-dim); margin-bottom: 0.9rem; }
     .counter strong { color: var(--text-muted); }
 
+    /* Bloc recherche / ajout repliable, affiché entre les filtres et le compteur */
+    .inline-section { margin-bottom: 0.9rem; }
+
     /* Pagination */
     .pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 0.6rem 0; }
     .pager-label { font-family: var(--mono); font-size: 0.73rem; color: var(--text-dim); min-width: 70px; text-align: center; }
@@ -184,6 +187,26 @@
           </button>
         </div>
 
+        <div class="inline-section" id="search-section" style="display:none">
+          <span class="section-tag">Rechercher</span>
+          <div class="input-row">
+            <input type="text" id="search-input" placeholder="Rechercher un domaine…"
+              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="onSearchInput()" />
+          </div>
+        </div>
+
+        <div class="inline-section" id="add-section" style="display:none">
+          <span class="section-tag">Ajouter un domaine</span>
+          <div class="input-row">
+            <input type="text" id="add-domain" placeholder="exemple.com"
+              autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+            <button class="btn btn-success" id="add-btn" onclick="addDomain()">Surveiller</button>
+          </div>
+          <div class="alert alert-error"   id="add-error"></div>
+          <div class="alert alert-info"    id="add-available"></div>
+          <div class="alert alert-success" id="add-success"></div>
+        </div>
+
         <p class="counter">
           <strong id="active-count">0</strong> / 50 actifs
           &nbsp;·&nbsp;
@@ -213,26 +236,6 @@
             <svg viewBox="0 0 16 16" fill="none"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
-      </div>
-
-      <div class="card-section" id="search-section" style="display:none">
-        <span class="section-tag">Rechercher</span>
-        <div class="input-row">
-          <input type="text" id="search-input" placeholder="Rechercher un domaine…"
-            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" oninput="onSearchInput()" />
-        </div>
-      </div>
-
-      <div class="card-section" id="add-section" style="display:none">
-        <span class="section-tag">Ajouter un domaine</span>
-        <div class="input-row">
-          <input type="text" id="add-domain" placeholder="exemple.com"
-            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-          <button class="btn btn-success" id="add-btn" onclick="addDomain()">Surveiller</button>
-        </div>
-        <div class="alert alert-error"   id="add-error"></div>
-        <div class="alert alert-info"    id="add-available"></div>
-        <div class="alert alert-success" id="add-success"></div>
       </div>
 
       <div class="card-section">
