@@ -178,11 +178,11 @@ async function sendAccountDeleteEmail(email, token) {
 
 async function sendMagicLinkEmail(email, token) {
   const APP_URL = process.env.APP_URL || 'http://localhost:3000';
-  const webLink    = `${APP_URL}/manage.html?token=${token}`;
-  // Les clients mail (Gmail en tête) suppriment les liens vers des schémas
-  // personnalisés (doomname://) : on passe par une page https intermédiaire
-  // qui effectue la redirection vers l'app côté client.
-  const mobileLink = `${APP_URL}/open-app.html?token=${token}`;
+  // Page https intermédiaire (les clients mail comme Gmail suppriment les
+  // liens vers des schémas personnalisés type doomname://) : elle tente
+  // d'ouvrir l'app sur mobile puis se replie automatiquement sur le site,
+  // y compris sur un navigateur de bureau où l'app n'existe pas.
+  const link = `${APP_URL}/open-app.html?token=${token}`;
 
   await resend.emails.send({
     from: process.env.EMAIL_FROM,
@@ -191,19 +191,13 @@ async function sendMagicLinkEmail(email, token) {
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
         <h2 style="color:#d97757">Connexion à DoomName</h2>
-        <p>Cliquez sur le bouton correspondant à votre situation :</p>
+        <p>Cliquez sur le bouton ci-dessous pour accéder à vos alertes — sur mobile, l'application s'ouvre automatiquement si elle est installée.</p>
         <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
 
-        <a href="${webLink}"
+        <a href="${link}"
            style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
-                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem;margin-right:1rem">
-          Ouvrir dans le navigateur →
-        </a>
-
-        <a href="${mobileLink}"
-           style="display:inline-block;background:#1a1a18;color:white;padding:0.75rem 1.5rem;
                   border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
-          Ouvrir dans l'app →
+          Accéder à DoomName →
         </a>
 
         <p style="color:#999;font-size:0.8rem;margin-top:2rem">
