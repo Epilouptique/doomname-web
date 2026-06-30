@@ -43,9 +43,11 @@ async function initDB() {
       token      VARCHAR(255) NOT NULL UNIQUE,
       expires_at TIMESTAMPTZ NOT NULL,
       used       BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      purpose    VARCHAR(20) DEFAULT 'login'
     )
   `);
+  await db.query(`ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS purpose VARCHAR(20) DEFAULT 'login'`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS api_keys (
       id             SERIAL PRIMARY KEY,
@@ -58,7 +60,21 @@ async function initDB() {
       created_at     TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS user_settings (
+      email                 VARCHAR(255) PRIMARY KEY,
+      email_alerts_enabled  BOOLEAN DEFAULT TRUE,
+      grace_alerts_enabled  BOOLEAN DEFAULT TRUE,
+      updated_at            TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
   console.log('✅ Base de données prête');
+}
+
+async function getUserSettings(email) {
+  const { rows } = await db.query('SELECT * FROM user_settings WHERE email = $1', [email.toLowerCase()]);
+  if (rows.length > 0) return rows[0];
+  return { email: email.toLowerCase(), email_alerts_enabled: true, grace_alerts_enabled: true };
 }
 
 // ─── Token de review permanent pour Google Play ────────────────────────────────
@@ -131,6 +147,30 @@ async function sendStatusChangeEmail(email, domain, status) {
         <p style="color:#999;font-size:0.8rem;margin-top:2rem">
           Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
         </p>
+      </div>
+    `
+  });
+}
+
+async function sendAccountDeleteEmail(email, token) {
+  const APP_URL = process.env.APP_URL || 'http://localhost:3000';
+  const confirmLink = `${APP_URL}/api/account/confirm-delete?token=${token}`;
+
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM,
+    to:   email,
+    subject: '⚠️ Confirmer la suppression de votre compte DoomName',
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
+        <h2 style="color:#e24b4a">Suppression de compte</h2>
+        <p>Une demande de suppression de compte a été effectuée pour cette adresse e-mail.</p>
+        <p>Cette action supprimera <strong>définitivement</strong> tous les noms de domaine que vous surveillez. Elle est irréversible.</p>
+        <a href="${confirmLink}"
+           style="display:inline-block;background:#e24b4a;color:white;padding:0.75rem 1.5rem;
+                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
+          Confirmer la suppression →
+        </a>
+        <p style="color:#999;font-size:0.85rem;margin-top:1.5rem">Ce lien est valable 20 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
       </div>
     `
   });
@@ -538,6 +578,92 @@ app.post('/api/manage/import', async (req, res) => {
   }
 });
 
+// ─── Préférences d'alertes ──────────────────────────────────────────────────────
+app.get('/api/manage/settings', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+  try {
+    const settings = await getUserSettings(email);
+    return res.json({
+      email_alerts_enabled: settings.email_alerts_enabled,
+      grace_alerts_enabled: settings.grace_alerts_enabled
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.patch('/api/manage/settings', async (req, res) => {
+  const { email, email_alerts_enabled, grace_alerts_enabled } = req.body;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+
+  try {
+    const current = await getUserSettings(email);
+    const next = {
+      email_alerts_enabled: typeof email_alerts_enabled === 'boolean' ? email_alerts_enabled : current.email_alerts_enabled,
+      grace_alerts_enabled: typeof grace_alerts_enabled === 'boolean' ? grace_alerts_enabled : current.grace_alerts_enabled
+    };
+    await db.query(`
+      INSERT INTO user_settings (email, email_alerts_enabled, grace_alerts_enabled, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (email) DO UPDATE SET email_alerts_enabled = $2, grace_alerts_enabled = $3, updated_at = NOW()
+    `, [email.toLowerCase(), next.email_alerts_enabled, next.grace_alerts_enabled]);
+    return res.json({ success: true, ...next });
+  } catch (err) {
+    console.error('Erreur PATCH settings:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── Suppression de compte ──────────────────────────────────────────────────────
+app.post('/api/account/delete-request', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide' });
+
+  const token     = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
+
+  try {
+    await db.query(
+      'INSERT INTO magic_links (email, token, expires_at, purpose) VALUES ($1, $2, $3, $4)',
+      [email.toLowerCase(), token, expiresAt, 'delete']
+    );
+    await sendAccountDeleteEmail(email.toLowerCase(), token);
+    console.log(`🗑️  Demande de suppression de compte envoyée à ${email}`);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur delete-request:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.get('/api/account/confirm-delete', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).send('Lien invalide.');
+
+  try {
+    const { rows } = await db.query(
+      "SELECT * FROM magic_links WHERE token = $1 AND used = FALSE AND expires_at > NOW() AND purpose = 'delete'",
+      [token]
+    );
+    if (rows.length === 0) {
+      return res.status(401).send(`<!DOCTYPE html><html lang="fr"><body style="font-family:sans-serif;text-align:center;padding:4rem 1rem"><h2>Lien invalide ou expiré</h2><p>Ce lien de suppression n'est plus valable.</p></body></html>`);
+    }
+
+    const { email } = rows[0];
+    await db.query('DELETE FROM subscriptions WHERE email = $1', [email]);
+    await db.query('DELETE FROM api_keys WHERE email = $1', [email]);
+    await db.query('DELETE FROM user_settings WHERE email = $1', [email]);
+    await db.query('UPDATE magic_links SET used = TRUE WHERE token = $1', [token]);
+
+    console.log(`🗑️  Compte supprimé : ${email}`);
+    return res.send(`<!DOCTYPE html><html lang="fr"><body style="font-family:sans-serif;text-align:center;padding:4rem 1rem"><h2>Compte supprimé</h2><p>Toutes vos surveillances de domaines ont été supprimées.</p></body></html>`);
+  } catch (err) {
+    console.error('Erreur confirm-delete:', err.message);
+    return res.status(500).send('Erreur serveur.');
+  }
+});
+
 // ─── Routes API publique v1 ────────────────────────────────────────────────────
 
 app.post('/api/developer/register', async (req, res) => {
@@ -652,8 +778,13 @@ cron.schedule('0 * * * *', async () => {
         console.log(`✅ ${domain} est maintenant disponible !`);
         for (const { email } of subs) {
           try {
-            await sendAlertEmail(email, domain);
-            console.log(`  📧 Alerte envoyée à ${email}`);
+            const settings = await getUserSettings(email);
+            if (settings.email_alerts_enabled) {
+              await sendAlertEmail(email, domain);
+              console.log(`  📧 Alerte envoyée à ${email}`);
+            } else {
+              console.log(`  🔕 Alertes mail désactivées pour ${email}, envoi ignoré`);
+            }
           } catch (mailErr) {
             console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
           }
@@ -664,8 +795,13 @@ cron.schedule('0 * * * *', async () => {
         for (const { email, last_status } of subs) {
           if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
             try {
-              await sendStatusChangeEmail(email, domain, status);
-              console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
+              const settings = await getUserSettings(email);
+              if (settings.email_alerts_enabled && settings.grace_alerts_enabled) {
+                await sendStatusChangeEmail(email, domain, status);
+                console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
+              } else {
+                console.log(`  🔕 Alertes de grâce/rédemption désactivées pour ${email}, envoi ignoré`);
+              }
             } catch (mailErr) {
               console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
             }

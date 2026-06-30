@@ -201,6 +201,10 @@ input::placeholder { color: var(--text-dim); }
 .btn-success:hover { opacity: 0.88; }
 .btn-success:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { opacity: 0.88; }
+.btn-danger:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
 .btn-outline {
   background: transparent; border: 1px solid var(--border-md);
   color: var(--text-muted); padding: 0.4rem 0.85rem; font-size: 0.78rem;

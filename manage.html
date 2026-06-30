@@ -69,6 +69,16 @@
     .csv-row { display: flex; gap: 7px; margin-top: 0.75rem; }
     .csv-row input[type="file"] { display: none; }
 
+    /* Préférences d'alertes */
+    .settings-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; padding: 0.6rem 0;
+    }
+    .settings-row + .settings-row { border-top: 1px solid var(--border); }
+    .settings-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .settings-row-title { font-size: 0.85rem; font-weight: 500; color: var(--text); }
+    .settings-row-desc { font-size: 0.74rem; color: var(--text-dim); line-height: 1.4; }
+
     /* Switch */
     .switch { position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0; }
     .switch input { opacity: 0; width: 0; height: 0; }
@@ -249,6 +259,32 @@
         <div class="alert alert-success" id="csv-success"></div>
       </div>
 
+      <div class="card-section">
+        <span class="section-tag">Alertes</span>
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <span class="settings-row-title">Alertes e-mail</span>
+            <span class="settings-row-desc">Recevoir un e-mail quand un domaine surveillé devient disponible</span>
+          </div>
+          <label class="switch" title="Activer/désactiver les alertes e-mail">
+            <input type="checkbox" id="setting-email-alerts" onchange="updateSettings()" />
+            <div class="switch-track"></div>
+            <div class="switch-thumb"></div>
+          </label>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <span class="settings-row-title">Période de grâce</span>
+            <span class="settings-row-desc">Être alerté quand un domaine entre en grâce, rédemption ou suppression</span>
+          </div>
+          <label class="switch" title="Activer/désactiver les alertes de période de grâce">
+            <input type="checkbox" id="setting-grace-alerts" onchange="updateSettings()" />
+            <div class="switch-track"></div>
+            <div class="switch-thumb"></div>
+          </label>
+        </div>
+      </div>
+
       <div class="card-section" style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:0.76rem;color:var(--text-dim);font-family:var(--mono)" id="user-email-display"></span>
         <button class="btn btn-outline" onclick="logout()">Se déconnecter</button>
@@ -375,6 +411,7 @@
           document.getElementById('user-email-display').textContent = userEmail;
           showView('view-manage');
           await loadSubscriptions();
+          await loadSettings();
         } else { showView('view-expired'); }
       } catch { showView('view-expired'); }
     }
@@ -410,6 +447,27 @@
       } catch {
         document.getElementById('domain-list').innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div>Erreur de chargement.</div>';
       }
+    }
+
+    // ─── Préférences d'alertes ────────────────────────────────────────────────
+    async function loadSettings() {
+      try {
+        const res  = await fetch(`${API_BASE}/api/manage/settings?email=${encodeURIComponent(userEmail)}`);
+        const data = await res.json();
+        document.getElementById('setting-email-alerts').checked = data.email_alerts_enabled !== false;
+        document.getElementById('setting-grace-alerts').checked = data.grace_alerts_enabled !== false;
+      } catch { /* préférences par défaut (activées) en cas d'échec */ }
+    }
+
+    async function updateSettings() {
+      const email_alerts_enabled = document.getElementById('setting-email-alerts').checked;
+      const grace_alerts_enabled = document.getElementById('setting-grace-alerts').checked;
+      try {
+        await fetch(`${API_BASE}/api/manage/settings`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: userEmail, email_alerts_enabled, grace_alerts_enabled })
+        });
+      } catch { /* la prochaine ouverture rechargera l'état réel */ }
     }
 
     function setFilter(f) {
@@ -464,8 +522,9 @@
           <div class="domain-actions">
             <button class="btn-icon" onclick="showWhois('${sub.domain}')" title="Voir le WHOIS complet">
               <svg viewBox="0 0 16 16" fill="none">
-                <circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.3"/>
-                <path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"/>
+                <path d="M8 7.2v4.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                <circle cx="8" cy="4.9" r="0.9" fill="currentColor"/>
               </svg>
             </button>
             <label class="switch" title="${sub.active ? 'Désactiver' : 'Réactiver'}">

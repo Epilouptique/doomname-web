@@ -306,6 +306,23 @@
       </div>
     </div>
 
+    <!-- Article 11 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">Art. 11</span>
+        <span class="article-title">Suppression de compte</span>
+      </div>
+      <div class="article-body">
+        <p>Le service ne reposant pas sur un compte avec mot de passe, la suppression définitive de toutes les données associées à une adresse e-mail (surveillances de domaines, clés API, préférences) peut être demandée ci-dessous. Un e-mail de confirmation vous sera envoyé ; l'opération n'est effectuée qu'après avoir cliqué sur le lien qu'il contient, et elle est <strong>irréversible</strong>.</p>
+        <div class="input-row" style="margin-top:0.75rem">
+          <input type="email" id="delete-email" placeholder="vous@exemple.com" />
+          <button class="btn btn-danger" id="delete-btn" onclick="requestAccountDeletion()">Supprimer mon compte</button>
+        </div>
+        <div class="alert alert-error"   id="delete-error"></div>
+        <div class="alert alert-success" id="delete-success"></div>
+      </div>
+    </div>
+
   </div>
 
   <footer>
@@ -316,6 +333,35 @@
   </footer>
 
   <script>
+    const API_BASE = 'https://www.doomname.com';
+
+    function showAlert(id, html) { const el = document.getElementById(id); el.innerHTML = html; el.style.display = 'block'; }
+    function hideAlert(id) { document.getElementById(id).style.display = 'none'; }
+
+    async function requestAccountDeletion() {
+      const email = document.getElementById('delete-email').value.trim();
+      hideAlert('delete-error'); hideAlert('delete-success');
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAlert('delete-error', 'Adresse e-mail invalide.'); return; }
+      if (!confirm(`Confirmez-vous vouloir supprimer définitivement le compte associé à ${email} ? Cette action est irréversible.`)) return;
+
+      const btn = document.getElementById('delete-btn');
+      btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
+
+      try {
+        const res  = await fetch(`${API_BASE}/api/account/delete-request`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showAlert('delete-success', '📬 Vérifiez votre boîte mail pour confirmer la suppression de votre compte.');
+          document.getElementById('delete-email').value = '';
+        } else { showAlert('delete-error', data.error || 'Une erreur est survenue.'); }
+      } catch { showAlert('delete-error', 'Impossible de contacter le serveur.'); }
+
+      btn.innerHTML = 'Supprimer mon compte'; btn.disabled = false;
+    }
+
     function applyTheme(dark) {
       document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
       const icon = document.getElementById('theme-icon');
