@@ -187,6 +187,23 @@
     </div>
   </div>
 
+  <!-- Confirmation de suppression de compte (lien du footer des e-mails) -->
+  <div class="view" id="view-delete-confirm">
+    <div class="card">
+      <div class="card-section" style="text-align:center;padding:2.5rem 2rem">
+        <div style="font-size:2.2rem;margin-bottom:0.9rem">🗑️</div>
+        <h2 style="font-size:1.05rem;font-weight:500;margin-bottom:0.45rem">Supprimer votre compte</h2>
+        <p style="font-size:0.86rem;color:var(--text-muted);margin-bottom:1.4rem;line-height:1.55">
+          Vous êtes sur le point de supprimer <strong id="delete-email"></strong>.<br/>
+          Toutes vos surveillances de domaines, clés API et préférences seront
+          <strong>définitivement</strong> supprimées. Cette action est irréversible.
+        </p>
+        <button class="btn btn-danger" id="delete-confirm-btn" onclick="confirmAccountDeletion()">Supprimer définitivement</button>
+        <p style="margin-top:1rem"><a href="/" style="font-size:0.82rem;color:var(--text-muted)">Annuler</a></p>
+      </div>
+    </div>
+  </div>
+
   <!-- Gestion -->
   <div class="view" id="view-manage">
     <div class="card">
@@ -425,6 +442,8 @@
     }
 
     // ─── Init ─────────────────────────────────────────────────────────────────
+    let pendingDeleteToken = null;
+
     async function init() {
       const params = new URLSearchParams(window.location.search);
       const token  = params.get('token');
@@ -435,7 +454,31 @@
         localStorage.setItem('dw-pending-filter', urlFilter);
       }
       if (token || urlFilter) window.history.replaceState({}, '', '/manage.html');
-      if (token) await verifyToken(token);
+
+      if (token) {
+        // Un token peut être un lien de suppression (footer des e-mails) : on le
+        // vérifie d'abord. Sinon on retombe sur la connexion classique.
+        try {
+          const res = await fetch(`${API_BASE}/api/account/delete-info?token=${encodeURIComponent(token)}`);
+          const info = await res.json();
+          if (info.valid) {
+            pendingDeleteToken = token;
+            document.getElementById('delete-email').textContent = info.email;
+            showView('view-delete-confirm');
+            return;
+          }
+        } catch { /* on tente la connexion ci-dessous */ }
+        await verifyToken(token);
+      }
+    }
+
+    async function confirmAccountDeletion() {
+      if (!pendingDeleteToken) return;
+      const btn = document.getElementById('delete-confirm-btn');
+      btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
+      // L'endpoint confirm-delete supprime le compte et renvoie une page de
+      // confirmation : on y navigue directement.
+      window.location.href = `${API_BASE}/api/account/confirm-delete?token=${encodeURIComponent(pendingDeleteToken)}`;
     }
 
     function applyPendingFilter() {

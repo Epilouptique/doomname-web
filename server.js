@@ -108,27 +108,61 @@ async function ensureReviewToken() {
 
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
 const resend = new Resend(process.env.RESEND_API_KEY);
+const SITE_URL = 'https://doomname.com';
 
-async function sendAlertEmail(email, domain) {
+// Magic link de suppression de compte valable 7 jours (purpose='delete').
+async function createDeleteToken(email) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await db.query(
+    "INSERT INTO magic_links (email, token, expires_at, purpose) VALUES ($1, $2, $3, 'delete')",
+    [email.toLowerCase(), token, expiresAt]
+  );
+  return token;
+}
+
+// Footer légal ajouté à TOUS les e-mails.
+function legalFooter(deleteUrl) {
+  return `
+    <p style="color:#b0b0b0;font-size:0.72rem;margin-top:2.5rem;border-top:1px solid #eee;padding-top:1rem;line-height:1.6">
+      Ce message a été envoyé via <a href="${SITE_URL}" style="color:#999">doomname.com</a>.<br>
+      Si vous n'êtes pas à l'origine de cette inscription, vous pouvez <a href="${deleteUrl}" style="color:#999">supprimer votre compte ici</a>.
+    </p>`;
+}
+
+// Envoi centralisé : enveloppe le contenu + footer légal (avec lien de
+// suppression 7 jours propre au destinataire).
+async function sendEmail(email, subject, innerHtml) {
+  let footer = '';
+  try {
+    const token = await createDeleteToken(email);
+    footer = legalFooter(`${SITE_URL}/manage.html?token=${token}`);
+  } catch (err) {
+    console.error('  ⚠️  Footer de suppression non généré:', err.message);
+  }
   await resend.emails.send({
     from: process.env.EMAIL_FROM,
     to:   email,
-    subject: `🟢 ${domain} est maintenant disponible !`,
+    subject,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#34c97a">Bonne nouvelle !</h2>
-        <p>Le domaine que vous surveilliez est désormais disponible :</p>
-        <div style="background:#f0faf5;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
-          <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
-        </div>
-        <p>Réservez-le rapidement auprès du registrar de votre choix avant qu'il ne soit pris !</p>
-        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-          Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.<br/>
-          Votre alerte a été désactivée automatiquement.
-        </p>
-      </div>
-    `
+        ${innerHtml}
+        ${footer}
+      </div>`
   });
+}
+
+async function sendAlertEmail(email, domain) {
+  await sendEmail(email, `🟢 ${domain} est maintenant disponible !`, `
+    <h2 style="color:#34c97a">Bonne nouvelle !</h2>
+    <p>Le domaine que vous surveilliez est désormais disponible :</p>
+    <div style="background:#f0faf5;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
+      <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
+    </div>
+    <p>Réservez-le rapidement auprès du registrar de votre choix avant qu'il ne soit pris !</p>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+      Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.
+    </p>`);
 }
 
 // ─── Firebase Admin (push web via FCM) ─────────────────────────────────────────
@@ -242,25 +276,17 @@ const STATUS_LABELS = {
 async function sendStatusChangeEmail(email, domain, status) {
   const info = STATUS_LABELS[status];
   if (!info) return;
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM,
-    to:   email,
-    subject: `🟠 ${domain} est désormais ${info.title}`,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#ba7517">Changement d'état détecté</h2>
-        <p>Le domaine que vous surveillez vient de changer de statut :</p>
-        <div style="background:#fbf3e8;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
-          <strong style="font-size:1.2rem;font-family:monospace">${domain}</strong>
-          <p style="margin-top:0.5rem;color:#555">${info.detail}</p>
-        </div>
-        <p>Son ancien propriétaire semble avoir abandonné son renouvellement. Restez attentif, une alerte vous sera envoyée dès qu'il sera totalement disponible.</p>
-        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-          Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
-        </p>
-      </div>
-    `
-  });
+  await sendEmail(email, `🟠 ${domain} est désormais ${info.title}`, `
+    <h2 style="color:#ba7517">Changement d'état détecté</h2>
+    <p>Le domaine que vous surveillez vient de changer de statut :</p>
+    <div style="background:#fbf3e8;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
+      <strong style="font-size:1.2rem;font-family:monospace">${domain}</strong>
+      <p style="margin-top:0.5rem;color:#555">${info.detail}</p>
+    </div>
+    <p>Son ancien propriétaire semble avoir abandonné son renouvellement. Restez attentif, une alerte vous sera envoyée dès qu'il sera totalement disponible.</p>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+      Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
+    </p>`);
 }
 
 async function sendStatusChangePush(email, domain, status) {
@@ -275,24 +301,16 @@ async function sendStatusChangePush(email, domain, status) {
 
 // « Dommage » : un domaine signalé disponible vient d'être repris par quelqu'un.
 async function sendMissedEmail(email, domain) {
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM,
-    to:   email,
-    subject: `😔 ${domain} vient d'être pris`,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#e24b4a">Dommage…</h2>
-        <p>Le domaine que vous surveilliez vient d'être enregistré :</p>
-        <div style="background:#fdeceb;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
-          <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
-        </div>
-        <p>Quelqu'un a enregistré ce domaine avant vous. <strong>Votre alerte reste active</strong> : nous continuons à le surveiller et vous préviendrons s'il se libère de nouveau.</p>
-        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-          Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
-        </p>
-      </div>
-    `
-  });
+  await sendEmail(email, `😔 ${domain} vient d'être pris`, `
+    <h2 style="color:#e24b4a">Dommage…</h2>
+    <p>Le domaine que vous surveilliez vient d'être enregistré :</p>
+    <div style="background:#fdeceb;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
+      <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
+    </div>
+    <p>Quelqu'un a enregistré ce domaine avant vous. <strong>Votre alerte reste active</strong> : nous continuons à le surveiller et vous préviendrons s'il se libère de nouveau.</p>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+      Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
+    </p>`);
 }
 
 async function sendMissedPush(email, domain) {
@@ -306,25 +324,16 @@ async function sendMissedPush(email, domain) {
 async function sendAccountDeleteEmail(email, token) {
   const APP_URL = process.env.APP_URL || 'http://localhost:3000';
   const confirmLink = `${APP_URL}/api/account/confirm-delete?token=${token}`;
-
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM,
-    to:   email,
-    subject: '⚠️ Confirmer la suppression de votre compte DoomName',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#e24b4a">Suppression de compte</h2>
-        <p>Une demande de suppression de compte a été effectuée pour cette adresse e-mail.</p>
-        <p>Cette action supprimera <strong>définitivement</strong> tous les noms de domaine que vous surveillez. Elle est irréversible.</p>
-        <a href="${confirmLink}"
-           style="display:inline-block;background:#e24b4a;color:white;padding:0.75rem 1.5rem;
-                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
-          Confirmer la suppression →
-        </a>
-        <p style="color:#999;font-size:0.85rem;margin-top:1.5rem">Ce lien est valable 20 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
-      </div>
-    `
-  });
+  await sendEmail(email, '⚠️ Confirmer la suppression de votre compte DoomName', `
+    <h2 style="color:#e24b4a">Suppression de compte</h2>
+    <p>Une demande de suppression de compte a été effectuée pour cette adresse e-mail.</p>
+    <p>Cette action supprimera <strong>définitivement</strong> tous les noms de domaine que vous surveillez. Elle est irréversible.</p>
+    <a href="${confirmLink}"
+       style="display:inline-block;background:#e24b4a;color:white;padding:0.75rem 1.5rem;
+              border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
+      Confirmer la suppression →
+    </a>
+    <p style="color:#999;font-size:0.85rem;margin-top:1.5rem">Ce lien est valable 20 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>`);
 }
 
 async function sendMagicLinkEmail(email, token) {
@@ -334,60 +343,41 @@ async function sendMagicLinkEmail(email, token) {
   // d'ouvrir l'app sur mobile puis se replie automatiquement sur le site,
   // y compris sur un navigateur de bureau où l'app n'existe pas.
   const link = `${APP_URL}/open-app.html?token=${token}`;
-
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM,
-    to:   email,
-    subject: '🔑 Votre lien de connexion DoomName',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#d97757">Connexion à DoomName</h2>
-        <p>Cliquez sur le bouton ci-dessous pour accéder à vos alertes.</p>
-        <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
-
-        <a href="${link}"
-           style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
-                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
-          Accéder à DoomName →
-        </a>
-
-        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-          Si vous n'avez pas demandé ce lien, ignorez cet e-mail.
-        </p>
-      </div>
-    `
-  });
+  await sendEmail(email, '🔑 Votre lien de connexion DoomName', `
+    <h2 style="color:#d97757">Connexion à DoomName</h2>
+    <p>Cliquez sur le bouton ci-dessous pour accéder à vos alertes.</p>
+    <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
+    <a href="${link}"
+       style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
+              border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
+      Accéder à DoomName →
+    </a>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+      Si vous n'avez pas demandé ce lien, ignorez cet e-mail.
+    </p>`);
 }
 
 async function sendApiKeyEmail(email, key, label) {
   const APP_URL = process.env.APP_URL || 'http://localhost:3000';
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM,
-    to:   email,
-    subject: '🔧 Votre clé API DoomName',
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
-        <h2 style="color:#d97757">Votre clé API DoomName</h2>
-        <p>Voici votre clé API${label ? ` (${label})` : ''} :</p>
-        <div style="background:#f5f4f0;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0;font-family:monospace;font-size:0.95rem;word-break:break-all">
-          ${key}
-        </div>
-        <p style="font-size:0.9rem">Utilisez-la dans le header de vos requêtes :</p>
-        <div style="background:#1a1a18;color:#e8eaf0;border-radius:8px;padding:1rem 1.5rem;margin:1rem 0;font-family:monospace;font-size:0.82rem">
-          Authorization: Bearer ${key}
-        </div>
-        <a href="${APP_URL}/docs.html"
-           style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
-                  border-radius:8px;text-decoration:none;font-weight:500;margin-top:0.5rem">
-          Voir la documentation →
-        </a>
-        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-          Limite : 100 requêtes par jour.<br/>
-          Ne partagez pas cette clé publiquement.
-        </p>
-      </div>
-    `
-  });
+  await sendEmail(email, '🔧 Votre clé API DoomName', `
+    <h2 style="color:#d97757">Votre clé API DoomName</h2>
+    <p>Voici votre clé API${label ? ` (${label})` : ''} :</p>
+    <div style="background:#f5f4f0;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0;font-family:monospace;font-size:0.95rem;word-break:break-all">
+      ${key}
+    </div>
+    <p style="font-size:0.9rem">Utilisez-la dans le header de vos requêtes :</p>
+    <div style="background:#1a1a18;color:#e8eaf0;border-radius:8px;padding:1rem 1.5rem;margin:1rem 0;font-family:monospace;font-size:0.82rem">
+      Authorization: Bearer ${key}
+    </div>
+    <a href="${APP_URL}/docs.html"
+       style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
+              border-radius:8px;text-decoration:none;font-weight:500;margin-top:0.5rem">
+      Voir la documentation →
+    </a>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+      Limite : 100 requêtes par jour.<br/>
+      Ne partagez pas cette clé publiquement.
+    </p>`);
 }
 
 // ─── Cache WHOIS (évite le rate-limiting des registrars) ──────────────────────
@@ -612,7 +602,12 @@ app.get('/api/auth/verify', async (req, res) => {
   if (!token) return res.status(400).json({ error: 'Token manquant' });
 
   try {
-    const { rows } = await db.query('SELECT * FROM magic_links WHERE token = $1 AND used = FALSE AND expires_at > NOW()', [token]);
+    // Les tokens de suppression (purpose='delete') ne peuvent pas servir à se
+    // connecter : ils sont gérés par le flux de confirmation de suppression.
+    const { rows } = await db.query(
+      "SELECT * FROM magic_links WHERE token = $1 AND used = FALSE AND expires_at > NOW() AND purpose IS DISTINCT FROM 'delete'",
+      [token]
+    );
     if (rows.length === 0) return res.status(401).json({ error: 'Lien invalide ou expiré' });
 
     // Le token de review Google Play reste toujours réutilisable
@@ -845,7 +840,7 @@ app.get('/api/test-push', async (req, res) => {
     );
     await sendPushNotification(email, {
       title: `🟢 ${TEST_DOMAIN} est disponible !`,
-      body: 'Super, ce domaine vient de se libérer ! Appuyez pour gérer votre alerte.',
+      body: 'Super, ce domaine vient de se libérer !',
       data: { type: 'domain_available', domain: TEST_DOMAIN, screen: 'manage', filter: 'available' },
     });
     // Teste aussi le canal e-mail — en respectant la préférence email_alerts_enabled,
@@ -911,6 +906,24 @@ app.post('/api/account/delete-request', async (req, res) => {
   }
 });
 
+// Valide un token de suppression (purpose='delete') sans le consommer, pour
+// afficher un écran de confirmation côté manage.html (lien du footer des e-mails).
+app.get('/api/account/delete-info', async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.json({ valid: false });
+  try {
+    const { rows } = await db.query(
+      "SELECT email FROM magic_links WHERE token = $1 AND used = FALSE AND expires_at > NOW() AND purpose = 'delete'",
+      [token]
+    );
+    if (rows.length === 0) return res.json({ valid: false });
+    return res.json({ valid: true, email: rows[0].email });
+  } catch (err) {
+    console.error('Erreur delete-info:', err.message);
+    return res.status(500).json({ valid: false });
+  }
+});
+
 app.get('/api/account/confirm-delete', async (req, res) => {
   const { token } = req.query;
   if (!token) return res.status(400).send('Lien invalide.');
@@ -928,7 +941,10 @@ app.get('/api/account/confirm-delete', async (req, res) => {
     await db.query('DELETE FROM subscriptions WHERE email = $1', [email]);
     await db.query('DELETE FROM api_keys WHERE email = $1', [email]);
     await db.query('DELETE FROM user_settings WHERE email = $1', [email]);
-    await db.query('UPDATE magic_links SET used = TRUE WHERE token = $1', [token]);
+    await db.query('DELETE FROM push_tokens WHERE email = $1', [email]);
+    // Purge tous les magic links de ce compte (dont les liens de suppression 7j
+    // encore valides générés dans les footers d'e-mails).
+    await db.query('DELETE FROM magic_links WHERE email = $1', [email]);
 
     console.log(`🗑️  Compte supprimé : ${email}`);
     return res.send(`<!DOCTYPE html><html lang="fr"><body style="font-family:sans-serif;text-align:center;padding:4rem 1rem"><h2>Compte supprimé</h2><p>Toutes vos surveillances de domaines ont été supprimées.</p></body></html>`);
@@ -1062,7 +1078,7 @@ async function confirmAvailability(domain) {
         // filtré sur "Disponible".
         await sendPushNotification(email, {
           title: `🟢 ${domain} est disponible !`,
-          body: 'Super, ce domaine vient de se libérer ! Appuyez pour gérer votre alerte.',
+          body: 'Super, ce domaine vient de se libérer !',
           data: { type: 'domain_available', domain, screen: 'manage', filter: 'available' },
         });
       }

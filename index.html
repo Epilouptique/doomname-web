@@ -327,11 +327,16 @@
     function updateSuggestions() {
       const box = document.getElementById('suggestions-row');
       const raw = normalizeDomain(document.getElementById('domain-input').value);
-      const match = raw.match(/^([a-z0-9-]+)\.([a-z]{2,})$/);
-      if (!match) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
-      const [, base, ext] = match;
-      const others = COMMON_TLDS.filter(t => t !== ext).slice(0, 4);
+      // Dès qu'on tape une base (avec ou sans extension), on propose les variantes.
+      const withExt  = raw.match(/^([a-z0-9-]+)\.([a-z]{2,})$/);
+      const baseOnly = raw.match(/^([a-z0-9-]+)$/);
+      let base, ext = null;
+      if (withExt)       { base = withExt[1]; ext = withExt[2]; }
+      else if (baseOnly) { base = baseOnly[1]; }
+      else { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+      const others = COMMON_TLDS.filter(t => t !== ext);
       if (others.length === 0) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
       box.innerHTML = others.map(tld => `
