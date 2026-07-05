@@ -147,7 +147,7 @@
 
     <div class="card-section subscribe-section" id="subscribe-section">
       <span class="section-tag">Recevoir une alerte</span>
-      <p class="subscribe-intro">
+      <p class="subscribe-intro" id="subscribe-intro">
         <strong id="domain-label"></strong> est actuellement pris.
         Entrez votre e-mail pour être alerté dès qu'il sera disponible.
       </p>
@@ -266,9 +266,16 @@
         const data = await res.json();
         if (data.available) {
           showResult('available', `${domain} est disponible !`, 'Ce domaine peut être enregistré maintenant.');
+          // Parité "Surveiller" : on peut l'ajouter même s'il est disponible.
+          document.getElementById('subscribe-intro').innerHTML =
+            `<strong>${domain}</strong> est disponible. Surveillez-le pour être prévenu s'il est enregistré, puis à nouveau libéré.`;
+          document.getElementById('subscribe-btn').textContent = 'Surveiller';
+          document.getElementById('subscribe-section').style.display = 'block';
         } else {
           showResult('taken', `${domain} est déjà pris`, data.expiry ? `Expiration : ${data.expiry}` : 'Activez une alerte pour être notifié.');
-          document.getElementById('domain-label').textContent = domain;
+          document.getElementById('subscribe-intro').innerHTML =
+            `<strong>${domain}</strong> est actuellement pris. Entrez votre e-mail pour être alerté dès qu'il sera disponible.`;
+          document.getElementById('subscribe-btn').textContent = "M'alerter";
           document.getElementById('subscribe-section').style.display = 'block';
         }
       } catch { showResult('error', 'Erreur de connexion', 'Le serveur est inaccessible.'); }
