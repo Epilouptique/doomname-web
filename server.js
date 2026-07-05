@@ -767,32 +767,6 @@ app.delete('/api/manage/push-token', async (req, res) => {
   }
 });
 
-// TODO: supprimer après tests push
-app.get('/api/test-push', async (req, res) => {
-  const { email } = req.query;
-  if (!email) return res.status(400).json({ error: 'E-mail requis' });
-  try {
-    const { rows } = await db.query('SELECT token, platform FROM push_tokens WHERE email = $1', [email.toLowerCase()]);
-    if (rows.length === 0) return res.json({ success: false, message: 'Aucun token push pour cet e-mail', tokens: 0 });
-
-    await sendPushNotification(email, {
-      title: '🟢 test-doomname.com est disponible !',
-      body: 'Ceci est une notification de test envoyée depuis DoomName.',
-      data: { type: 'domain_available', domain: 'test-doomname.com', screen: 'manage' },
-    });
-
-    return res.json({
-      success: true,
-      message: 'Notification de test envoyée',
-      tokens: rows.length,
-      platforms: rows.map(r => r.platform || 'inconnu'),
-    });
-  } catch (err) {
-    console.error('Erreur /api/test-push:', err.message);
-    return res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
 // ─── Suppression de compte ──────────────────────────────────────────────────────
 app.post('/api/account/delete-request', async (req, res) => {
   const { email } = req.body;
@@ -965,7 +939,7 @@ async function confirmAvailability(domain) {
         // Notification push (canal distinct des alertes e-mail) — ouvre "Mes alertes".
         await sendPushNotification(email, {
           title: `🟢 ${domain} est disponible !`,
-          body: `Le domaine ${domain} vient de se libérer. Réservez-le vite !`,
+          body: 'Super, ce domaine vient de se libérer ! Appuyez pour gérer votre alerte.',
           data: { type: 'domain_available', domain, screen: 'manage' },
         });
       }
