@@ -848,10 +848,14 @@ app.get('/api/test-push', async (req, res) => {
       body: 'Super, ce domaine vient de se libérer ! Appuyez pour gérer votre alerte.',
       data: { type: 'domain_available', domain: TEST_DOMAIN, screen: 'manage', filter: 'available' },
     });
-    // Teste aussi le canal e-mail.
+    // Teste aussi le canal e-mail — en respectant la préférence email_alerts_enabled,
+    // comme en production.
     let emailSent = false;
-    try { await sendAlertEmail(email, TEST_DOMAIN); emailSent = true; }
-    catch (mailErr) { console.error('  ❌ Erreur envoi mail test-push:', mailErr.message); }
+    const settings = await getUserSettings(email);
+    if (settings.email_alerts_enabled) {
+      try { await sendAlertEmail(email, TEST_DOMAIN); emailSent = true; }
+      catch (mailErr) { console.error('  ❌ Erreur envoi mail test-push:', mailErr.message); }
+    }
     return res.json({ success: true, message: 'Notification "disponible" envoyée', domain: TEST_DOMAIN, emailSent });
   } catch (err) {
     console.error('Erreur /api/test-push:', err.message);
@@ -870,10 +874,14 @@ app.get('/api/test-taken', async (req, res) => {
       [TEST_DOMAIN, email.toLowerCase()]
     );
     await sendMissedPush(email, TEST_DOMAIN);
-    // Teste aussi le canal e-mail.
+    // Teste aussi le canal e-mail — en respectant la préférence email_alerts_enabled,
+    // comme en production.
     let emailSent = false;
-    try { await sendMissedEmail(email, TEST_DOMAIN); emailSent = true; }
-    catch (mailErr) { console.error('  ❌ Erreur envoi mail test-taken:', mailErr.message); }
+    const settings = await getUserSettings(email);
+    if (settings.email_alerts_enabled) {
+      try { await sendMissedEmail(email, TEST_DOMAIN); emailSent = true; }
+      catch (mailErr) { console.error('  ❌ Erreur envoi mail test-taken:', mailErr.message); }
+    }
     return res.json({ success: true, message: 'Notification "Dommage" envoyée', domain: TEST_DOMAIN, emailSent });
   } catch (err) {
     console.error('Erreur /api/test-taken:', err.message);
