@@ -8,7 +8,8 @@ const whois      = require('whois-json');
 const cron       = require('node-cron');
 const { Pool }   = require('pg');
 const { Resend } = require('resend');
-const admin      = require('firebase-admin');
+const { initializeApp, cert, applicationDefault } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 
 const app  = express();
 const port = process.env.PORT || 3000;
@@ -137,12 +138,12 @@ let firebaseReady = false;
 try {
   let credential = null;
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
+    credential = cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
   } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    credential = admin.credential.applicationDefault();
+    credential = applicationDefault();
   }
   if (credential) {
-    admin.initializeApp({ credential });
+    initializeApp({ credential });
     firebaseReady = true;
     console.log('✅ Firebase Admin initialisé (push web FCM disponible)');
   } else {
@@ -193,7 +194,7 @@ async function sendWebPush(tokens, { title, body, data }) {
   const stringData = { title, body, url: '/manage.html' };
   for (const [k, v] of Object.entries(data || {})) stringData[k] = String(v);
   try {
-    const res = await admin.messaging().sendEachForMulticast({
+    const res = await getMessaging().sendEachForMulticast({
       tokens,
       data: stringData,
       webpush: { headers: { Urgency: 'high' } },
