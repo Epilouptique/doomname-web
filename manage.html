@@ -422,7 +422,22 @@
     async function init() {
       const params = new URLSearchParams(window.location.search);
       const token  = params.get('token');
-      if (token) { window.history.replaceState({}, '', '/manage.html'); await verifyToken(token); }
+      // Filtre transmis par le tap sur une notification push (via sw.js).
+      // Mémorisé pour survivre au round-trip du magic-link, appliqué après login.
+      const urlFilter = params.get('filter');
+      if (urlFilter && ['all','active','inactive','available'].includes(urlFilter)) {
+        localStorage.setItem('dw-pending-filter', urlFilter);
+      }
+      if (token || urlFilter) window.history.replaceState({}, '', '/manage.html');
+      if (token) await verifyToken(token);
+    }
+
+    function applyPendingFilter() {
+      const pf = localStorage.getItem('dw-pending-filter');
+      if (pf && ['all','active','inactive','available'].includes(pf)) {
+        localStorage.removeItem('dw-pending-filter');
+        setFilter(pf);
+      }
     }
 
     async function verifyToken(token) {
@@ -437,6 +452,7 @@
           showView('view-manage');
           await loadSubscriptions();
           await loadSettings();
+          applyPendingFilter(); // applique le filtre reçu via notification push
         } else { showView('view-expired'); }
       } catch { showView('view-expired'); }
     }

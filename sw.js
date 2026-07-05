@@ -32,16 +32,22 @@ messaging.onBackgroundMessage(function(payload) {
   });
 });
 
-// Clic sur la notification → ouvre l'app
+// Clic sur la notification → ouvre l'app, en propageant le filtre éventuel
+// (ex. filter: 'available') via un paramètre d'URL lu par manage.html.
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  const url = event.notification.data?.url || '/';
+  const data = event.notification.data || {};
+  const base = data.url || '/';
+  const target = base + (data.filter ? (base.indexOf('?') === -1 ? '?' : '&') + 'filter=' + data.filter : '');
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       for (const client of clientList) {
-        if (client.url === url && 'focus' in client) return client.focus();
+        if (client.url.indexOf('/manage.html') !== -1 && 'focus' in client) {
+          if ('navigate' in client) client.navigate(target);
+          return client.focus();
+        }
       }
-      if (clients.openWindow) return clients.openWindow(url);
+      if (clients.openWindow) return clients.openWindow(target);
     })
   );
 });
