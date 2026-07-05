@@ -3,7 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DoomName — Surveillance de domaines</title>
+  <title>DoomName — Surveillance gratuite de disponibilité de noms de domaine</title>
+  <meta name="description" content="DoomName surveille gratuitement la disponibilité de vos noms de domaine et vous alerte par e-mail ou notification dès qu'un domaine expiré se libère. Vérification WHOIS en temps réel." />
+  <link rel="canonical" href="https://doomname.com/" />
+  <meta name="robots" content="index, follow" />
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="DoomName" />
+  <meta property="og:locale" content="fr_FR" />
+  <meta property="og:title" content="DoomName — Surveillance gratuite de noms de domaine" />
+  <meta property="og:description" content="Soyez alerté dès qu'un nom de domaine se libère. Surveillance WHOIS gratuite, alertes e-mail et notifications push." />
+  <meta property="og:url" content="https://doomname.com/" />
+  <meta property="og:image" content="https://doomname.com/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="DoomName — Surveillance gratuite de noms de domaine" />
+  <meta name="twitter:description" content="Soyez alerté dès qu'un nom de domaine se libère. Surveillance WHOIS gratuite." />
+  <meta name="twitter:image" content="https://doomname.com/og-image.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="manifest" href="/manifest.json" />
@@ -15,8 +33,31 @@
   <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/css/common.css" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "DoomName",
+    "url": "https://doomname.com/",
+    "description": "Surveillance gratuite de la disponibilité de noms de domaine avec alertes e-mail et notifications push dès qu'un domaine expiré se libère.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web, Android",
+    "inLanguage": "fr",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+    "publisher": { "@type": "Organization", "name": "Dahu-Concept", "url": "https://dahu-concept.fr" }
+  }
+  </script>
   <style>
     .subtitle { max-width: 380px; }
+
+    /* Section descriptive (SEO) */
+    .about { max-width: 640px; margin: 2.5rem auto 0; padding: 0 1.25rem; color: var(--text-muted); line-height: 1.65; font-size: 0.92rem; }
+    .about h2 { font-size: 1.15rem; color: var(--text); margin-bottom: 0.6rem; font-weight: 500; }
+    .about h3 { font-size: 1rem; color: var(--text); margin: 1.3rem 0 0.5rem; font-weight: 500; }
+    .about p { margin-bottom: 0.9rem; }
+    .about ul { padding-left: 1.1rem; margin: 0; }
+    .about li { margin-bottom: 0.4rem; }
+    .about strong { color: var(--text); font-weight: 500; }
 
     /* Suggestions d'extensions */
     .suggestions-row {
@@ -179,6 +220,31 @@
       WHOIS en temps réel
     </span>
   </div>
+
+  <section class="about">
+    <h2>Surveillez la disponibilité d'un nom de domaine, gratuitement</h2>
+    <p>
+      DoomName est un service gratuit qui surveille en continu la disponibilité des noms de domaine
+      qui vous intéressent. Saisissez un domaine (par exemple <strong>exemple.com</strong>) : nous
+      interrogeons les serveurs WHOIS en temps réel pour savoir s'il est libre, enregistré, ou en
+      cours d'expiration. S'il est déjà pris, activez une alerte et nous vous préviendrons
+      automatiquement, par e-mail et par notification, dès qu'il se libère.
+    </p>
+    <p>
+      De nombreux domaines expirent chaque jour sans être renouvelés. DoomName vérifie leur statut
+      toutes les heures et suit leur cycle de vie complet — période de grâce, rédemption, suppression —
+      pour vous alerter au bon moment, avant qu'un concurrent ou un revendeur ne les récupère.
+      Le service est utilisable depuis le web comme depuis l'application mobile Android, et une API
+      publique permet aux développeurs d'automatiser leurs propres surveillances.
+    </p>
+    <h3>Pourquoi utiliser DoomName ?</h3>
+    <ul>
+      <li><strong>Alertes automatiques</strong> par e-mail et notification push dès qu'un domaine devient disponible.</li>
+      <li><strong>Vérification WHOIS en temps réel</strong> et suivi horaire des domaines surveillés.</li>
+      <li><strong>Suivi du cycle d'expiration</strong> : grâce, rédemption et suppression imminente.</li>
+      <li><strong>100 % gratuit</strong>, sans publicité, avec une API pour les développeurs.</li>
+    </ul>
+  </section>
 
   <div style="text-align:center;margin-top:1.25rem">
     <button id="install-btn" onclick="installPWA()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
