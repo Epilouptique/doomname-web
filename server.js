@@ -109,6 +109,22 @@ async function ensureReviewToken() {
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SITE_URL = 'https://doomname.com';
+// Expéditeur unique et cohérent pour TOUS les envois (délivrabilité).
+const EMAIL_FROM = process.env.EMAIL_FROM || 'DoomName <noreply@alert.doomname.com>';
+
+// Version texte brut (multipart) dérivée du HTML — Gmail privilégie le multipart.
+function htmlToText(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#39;/gi, "'")
+    .split('\n').map(l => l.trim()).join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 // Magic link de suppression de compte valable 7 jours (purpose='delete').
 async function createDeleteToken(email) {
@@ -130,30 +146,47 @@ function legalFooter(deleteUrl) {
     </p>`;
 }
 
-// Envoi centralisé : enveloppe le contenu + footer légal (avec lien de
-// suppression 7 jours propre au destinataire).
-async function sendEmail(email, subject, innerHtml) {
+// Envoi centralisé : from cohérent, footer légal + lien de suppression 7 jours,
+// version texte brut (multipart), et en-tête List-Unsubscribe sur les e-mails
+// d'alerte uniquement (opts.listUnsub) — jamais sur les magic links.
+async function sendEmail(email, subject, innerHtml, opts = {}) {
+  const { listUnsub = false } = opts;
   let footer = '';
+  let deleteUrl = '';
   try {
     const token = await createDeleteToken(email);
-    footer = legalFooter(`${SITE_URL}/manage.html?token=${token}`);
+    deleteUrl = `${SITE_URL}/manage.html?token=${token}`;
+    footer = legalFooter(deleteUrl);
   } catch (err) {
     console.error('  ⚠️  Footer de suppression non généré:', err.message);
   }
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM,
-    to:   email,
-    subject,
-    html: `
+
+  const html = `
       <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
         ${innerHtml}
         ${footer}
-      </div>`
+      </div>`;
+  const text = htmlToText(innerHtml) +
+    (deleteUrl ? `\n\n—\nEnvoyé via doomname.com\nGérer ou supprimer votre compte : ${deleteUrl}` : '');
+
+  const headers = {};
+  if (listUnsub && deleteUrl) {
+    headers['List-Unsubscribe'] = `<${deleteUrl}>`;
+    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+  }
+
+  await resend.emails.send({
+    from: EMAIL_FROM,
+    to:   email,
+    subject,
+    html,
+    text,
+    ...(Object.keys(headers).length ? { headers } : {}),
   });
 }
 
 async function sendAlertEmail(email, domain) {
-  await sendEmail(email, `🟢 ${domain} est maintenant disponible !`, `
+  await sendEmail(email, `🟢 ${domain} est disponible`, `
     <h2 style="color:#34c97a">Bonne nouvelle !</h2>
     <p>Le domaine que vous surveilliez est désormais disponible :</p>
     <div style="background:#f0faf5;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
@@ -162,7 +195,7 @@ async function sendAlertEmail(email, domain) {
     <p>Réservez-le rapidement auprès du registrar de votre choix avant qu'il ne soit pris !</p>
     <p style="color:#999;font-size:0.8rem;margin-top:2rem">
       Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.
-    </p>`);
+    </p>`, { listUnsub: true });
 }
 
 // ─── Firebase Admin (push web via FCM) ─────────────────────────────────────────
@@ -286,7 +319,7 @@ async function sendStatusChangeEmail(email, domain, status) {
     <p>Son ancien propriétaire semble avoir abandonné son renouvellement. Restez attentif, une alerte vous sera envoyée dès qu'il sera totalement disponible.</p>
     <p style="color:#999;font-size:0.8rem;margin-top:2rem">
       Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
-    </p>`);
+    </p>`, { listUnsub: true });
 }
 
 async function sendStatusChangePush(email, domain, status) {
@@ -301,7 +334,7 @@ async function sendStatusChangePush(email, domain, status) {
 
 // « Dommage » : un domaine signalé disponible vient d'être repris par quelqu'un.
 async function sendMissedEmail(email, domain) {
-  await sendEmail(email, `😔 ${domain} vient d'être pris`, `
+  await sendEmail(email, `${domain} vient d'être repris`, `
     <h2 style="color:#e24b4a">Dommage…</h2>
     <p>Le domaine que vous surveilliez vient d'être enregistré :</p>
     <div style="background:#fdeceb;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
@@ -310,7 +343,7 @@ async function sendMissedEmail(email, domain) {
     <p>Quelqu'un a enregistré ce domaine avant vous. <strong>Votre alerte reste active</strong> : nous continuons à le surveiller et vous préviendrons s'il se libère de nouveau.</p>
     <p style="color:#999;font-size:0.8rem;margin-top:2rem">
       Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
-    </p>`);
+    </p>`, { listUnsub: true });
 }
 
 async function sendMissedPush(email, domain) {
@@ -343,7 +376,7 @@ async function sendMagicLinkEmail(email, token) {
   // d'ouvrir l'app sur mobile puis se replie automatiquement sur le site,
   // y compris sur un navigateur de bureau où l'app n'existe pas.
   const link = `${APP_URL}/open-app.html?token=${token}`;
-  await sendEmail(email, '🔑 Votre lien de connexion DoomName', `
+  await sendEmail(email, 'Votre lien de connexion DoomName', `
     <h2 style="color:#d97757">Connexion à DoomName</h2>
     <p>Cliquez sur le bouton ci-dessous pour accéder à vos alertes.</p>
     <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
