@@ -20,6 +20,9 @@
   "devDependencies": {
     "nodemon": "^3.1.3"
   },
+  "overrides": {
+    "whois": "2.15.0"
+  },
   "engines": {
     "node": ">=18"
   }
