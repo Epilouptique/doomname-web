@@ -62,6 +62,15 @@
     .status-badge.grace      { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning-border); }
     .status-badge.redemption { background: var(--danger-dim);  color: var(--danger);  border: 1px solid var(--danger-border); }
     .status-badge.pendingdelete { background: var(--success-dim); color: var(--success); border: 1px solid var(--success-border); }
+    .status-badge.available  { background: var(--success-dim); color: var(--success); border: 1px solid var(--success-border); }
+
+    /* Mise en évidence : domaine devenu disponible récemment (< 10 min) —
+       fond vert léger qui revient à la normale après quelques secondes. */
+    .domain-item.just-available { animation: fadeAvailable 6s ease-out forwards; }
+    @keyframes fadeAvailable {
+      0%, 65%  { background: var(--success-dim); border-color: var(--success-border); }
+      100%     { background: var(--surface2);    border-color: var(--border); }
+    }
 
     .domain-actions { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
 
@@ -180,9 +189,10 @@
         <span class="section-tag">Domaines surveillés</span>
 
         <div class="filter-row">
-          <button class="filter-btn active" id="filter-all"      onclick="setFilter('all')">Tous</button>
-          <button class="filter-btn"        id="filter-active"   onclick="setFilter('active')">Actifs</button>
-          <button class="filter-btn"        id="filter-inactive" onclick="setFilter('inactive')">Désactivés</button>
+          <button class="filter-btn active" id="filter-all"       onclick="setFilter('all')">Tous</button>
+          <button class="filter-btn"        id="filter-active"    onclick="setFilter('active')">Actifs</button>
+          <button class="filter-btn"        id="filter-inactive"  onclick="setFilter('inactive')">Désactivés</button>
+          <button class="filter-btn"        id="filter-available" onclick="setFilter('available')">Disponible</button>
           <span style="flex:1"></span>
           <button class="btn-icon" id="search-toggle-btn" onclick="toggleSearch()" title="Rechercher">
             <svg viewBox="0 0 16 16" fill="none">
@@ -488,7 +498,7 @@
     function setFilter(f) {
       currentFilter = f;
       currentPage = 1;
-      ['all','active','inactive'].forEach(id => document.getElementById('filter-' + id).classList.toggle('active', id === f));
+      ['all','active','inactive','available'].forEach(id => document.getElementById('filter-' + id).classList.toggle('active', id === f));
       renderSubscriptions();
     }
 
@@ -499,7 +509,10 @@
       document.getElementById('total-count').textContent  = allSubs.length;
 
       let filtered = allSubs.filter(s =>
-        currentFilter === 'active' ? s.active : currentFilter === 'inactive' ? !s.active : true
+        currentFilter === 'active' ? s.active
+        : currentFilter === 'inactive' ? !s.active
+        : currentFilter === 'available' ? s.last_status === 'available'
+        : true
       );
       if (searchQuery) filtered = filtered.filter(s => s.domain.includes(searchQuery));
 
@@ -507,6 +520,7 @@
         const msg = searchQuery ? `Aucun domaine ne correspond à "${searchQuery}".`
                   : currentFilter === 'active' ? 'Aucune surveillance active.'
                   : currentFilter === 'inactive' ? 'Aucun domaine désactivé.'
+                  : currentFilter === 'available' ? 'Aucun domaine disponible pour le moment.'
                   : 'Aucun domaine dans votre liste.';
         list.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div>${msg}</div>`;
         document.getElementById('pager-top').style.display = 'none';
@@ -528,8 +542,12 @@
         btn.style.pointerEvents = btn.disabled ? 'none' : 'auto';
       });
 
-      list.innerHTML = pageItems.map(sub => `
-        <div class="domain-item ${sub.active ? '' : 'inactive'}" id="item-${sub.id}">
+      const RECENT_MS = 10 * 60 * 1000;
+      list.innerHTML = pageItems.map(sub => {
+        const recentAvailable = sub.last_status === 'available' && sub.notified_at
+          && (Date.now() - new Date(sub.notified_at).getTime() < RECENT_MS);
+        return `
+        <div class="domain-item ${sub.active ? '' : 'inactive'} ${recentAvailable ? 'just-available' : ''}" id="item-${sub.id}">
           <div class="domain-info">
             <span class="domain-name">${sub.domain}${statusBadge(sub.last_status)}</span>
             <span class="domain-meta">Ajouté le ${formatDate(sub.created_at)}</span>
@@ -554,7 +572,8 @@
             </button>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
     function statusBadge(status) {
@@ -562,6 +581,7 @@
         gracePeriod: ['grace', 'Grâce'],
         redemptionPeriod: ['redemption', 'Rédemption'],
         pendingDelete: ['pendingdelete', 'Bientôt libre'],
+        available: ['available', 'Disponible'],
       };
       if (!status || !labels[status]) return '';
       const [cls, label] = labels[status];

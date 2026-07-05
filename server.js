@@ -39,6 +39,7 @@ async function initDB() {
   `);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_status VARCHAR(32) DEFAULT 'taken'`);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_confirmation_since TIMESTAMPTZ`);
+  await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS magic_links (
       id         SERIAL PRIMARY KEY,
@@ -269,6 +270,36 @@ async function sendStatusChangePush(email, domain, status) {
     title: `🟠 ${domain} est ${info.title}`,
     body: info.detail,
     data: { type: 'status_change', domain, status, screen: 'manage' },
+  });
+}
+
+// « Dommage » : un domaine signalé disponible vient d'être repris par quelqu'un.
+async function sendMissedEmail(email, domain) {
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM,
+    to:   email,
+    subject: `😔 ${domain} vient d'être pris`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto;padding:2rem">
+        <h2 style="color:#e24b4a">Dommage…</h2>
+        <p>Le domaine que vous surveilliez vient d'être enregistré :</p>
+        <div style="background:#fdeceb;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
+          <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
+        </div>
+        <p>Quelqu'un a enregistré ce domaine avant vous. <strong>Votre alerte reste active</strong> : nous continuons à le surveiller et vous préviendrons s'il se libère de nouveau.</p>
+        <p style="color:#999;font-size:0.8rem;margin-top:2rem">
+          Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
+        </p>
+      </div>
+    `
+  });
+}
+
+async function sendMissedPush(email, domain) {
+  await sendPushNotification(email, {
+    title: `😔 ${domain} vient d'être pris`,
+    body: 'Quelqu\'un a enregistré ce domaine avant vous. Votre alerte reste active.',
+    data: { type: 'domain_taken', domain, screen: 'manage' },
   });
 }
 
@@ -569,7 +600,7 @@ app.get('/api/manage/subscriptions', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
   try {
-    const { rows } = await db.query('SELECT id, domain, active, created_at, last_status FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
+    const { rows } = await db.query('SELECT id, domain, active, created_at, last_status, notified_at FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
     return res.json(rows);
   } catch (err) { return res.status(500).json({ error: 'Erreur serveur' }); }
 });
@@ -936,15 +967,19 @@ async function confirmAvailability(domain) {
         } catch (mailErr) {
           console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
         }
-        // Notification push (canal distinct des alertes e-mail) — ouvre "Mes alertes".
+        // Notification push (canal distinct des alertes e-mail) — ouvre "Mes alertes"
+        // filtré sur "Disponible".
         await sendPushNotification(email, {
           title: `🟢 ${domain} est disponible !`,
           body: 'Super, ce domaine vient de se libérer ! Appuyez pour gérer votre alerte.',
-          data: { type: 'domain_available', domain, screen: 'manage' },
+          data: { type: 'domain_available', domain, screen: 'manage', filter: 'available' },
         });
       }
+      // On garde l'alerte ACTIVE pour continuer à surveiller le domaine : s'il est
+      // repris, on pourra envoyer la notification "Dommage". notified_at date la
+      // disponibilité (utilisé pour la mise en évidence "récente" côté client).
       await db.query(
-        'UPDATE subscriptions SET active = FALSE, last_status = $2, pending_confirmation_since = NULL WHERE domain = $1',
+        'UPDATE subscriptions SET last_status = $2, notified_at = NOW(), pending_confirmation_since = NULL WHERE domain = $1',
         [domain, status]
       );
     } else {
@@ -1011,8 +1046,13 @@ cron.schedule('0 * * * *', async () => {
       const { rows: subs } = await db.query('SELECT email, last_status, pending_confirmation_since FROM subscriptions WHERE domain = $1 AND active = TRUE', [domain]);
 
       if (available) {
-        const alreadyPending = subs.some(s => s.pending_confirmation_since);
-        if (alreadyPending) {
+        const alreadyAvailable = subs.some(s => s.last_status === 'available');
+        const alreadyPending   = subs.some(s => s.pending_confirmation_since);
+        if (alreadyAvailable) {
+          // Déjà signalé disponible : on continue de surveiller (pour détecter
+          // une reprise) mais on ne ré-alerte pas.
+          console.log(`✅ ${domain} toujours disponible — déjà notifié, pas de nouvelle alerte`);
+        } else if (alreadyPending) {
           console.log(`⏳ ${domain} déjà en attente de confirmation, pas de nouvelle vérification programmée`);
         } else {
           console.log(`🕒 ${domain} semble disponible — confirmation différée de 10 min avant alerte`);
@@ -1022,7 +1062,19 @@ cron.schedule('0 * * * *', async () => {
       } else {
         console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
         for (const { email, last_status } of subs) {
-          if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
+          if (last_status === 'available') {
+            // « Dommage » : le domaine était disponible et vient d'être repris.
+            const settings = await getUserSettings(email);
+            if (settings.email_alerts_enabled) {
+              try {
+                await sendMissedEmail(email, domain);
+                console.log(`  📧 Notification "Dommage" (repris) envoyée à ${email}`);
+              } catch (mailErr) {
+                console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
+              }
+            }
+            await sendMissedPush(email, domain);
+          } else if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
             const settings = await getUserSettings(email);
             // La préférence "Période de grâce" pilote toute cette catégorie
             // (grâce / rédemption / suppression), e-mail comme push.
@@ -1041,7 +1093,8 @@ cron.schedule('0 * * * *', async () => {
             }
           }
         }
-        await db.query('UPDATE subscriptions SET last_status = $2, pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
+        // On repasse en "pris" et on efface notified_at (le domaine n'est plus dispo).
+        await db.query('UPDATE subscriptions SET last_status = $2, notified_at = NULL, pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
       }
 
       await new Promise(r => setTimeout(r, 1000));
