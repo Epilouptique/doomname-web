@@ -71,6 +71,12 @@
       0%, 65%  { background: var(--success-dim); border-color: var(--success-border); }
       100%     { background: var(--surface2);    border-color: var(--border); }
     }
+    /* Domaine repris récemment (available -> taken) — fond rouge léger. */
+    .domain-item.just-taken { animation: fadeTaken 6s ease-out forwards; }
+    @keyframes fadeTaken {
+      0%, 65%  { background: var(--danger-dim); border-color: var(--danger-border); }
+      100%     { background: var(--surface2);   border-color: var(--border); }
+    }
 
     .domain-actions { display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
 
@@ -560,10 +566,12 @@
 
       const RECENT_MS = 10 * 60 * 1000;
       list.innerHTML = pageItems.map(sub => {
-        const recentAvailable = sub.last_status === 'available' && sub.notified_at
-          && (Date.now() - new Date(sub.notified_at).getTime() < RECENT_MS);
+        const recent = sub.notified_at && (Date.now() - new Date(sub.notified_at).getTime() < RECENT_MS);
+        const recentAvailable = recent && sub.last_status === 'available';
+        const recentTaken     = recent && sub.last_status === 'taken';
+        const flashClass = recentAvailable ? 'just-available' : recentTaken ? 'just-taken' : '';
         return `
-        <div class="domain-item ${sub.active ? '' : 'inactive'} ${recentAvailable ? 'just-available' : ''}" id="item-${sub.id}">
+        <div class="domain-item ${sub.active ? '' : 'inactive'} ${flashClass}" id="item-${sub.id}">
           <div class="domain-info">
             <span class="domain-name">${sub.domain}${statusBadge(sub.last_status)}</span>
             <span class="domain-meta">Ajouté le ${formatDate(sub.created_at)}</span>

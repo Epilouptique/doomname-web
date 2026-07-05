@@ -299,7 +299,7 @@ async function sendMissedPush(email, domain) {
   await sendPushNotification(email, {
     title: `😔 ${domain} vient d'être pris`,
     body: 'Quelqu\'un a enregistré ce domaine avant vous. Votre alerte reste active.',
-    data: { type: 'domain_taken', domain, screen: 'manage' },
+    data: { type: 'domain_taken', domain, screen: 'manage', filter: 'active' },
   });
 }
 
@@ -534,6 +534,34 @@ app.get('/api/check', async (req, res) => {
   }
 });
 
+// Détecte immédiatement le statut WHOIS d'un domaine à l'ajout et l'enregistre,
+// sans attendre le cron horaire. Si le domaine est déjà disponible, on le marque
+// 'available' (+ notified_at) pour qu'il apparaisse aussitôt dans le filtre
+// "Disponible". Robuste aux erreurs WHOIS (garde le défaut 'taken' le cas échéant).
+// N'interfère pas avec la confirmation différée : on ne fait qu'écrire last_status.
+async function detectAndStoreStatus(domain, email) {
+  try {
+    const whoisData = await getWhoisWithCache(domain);
+    const { available, status } = parseDomainAvailability(whoisData);
+    if (available) {
+      await db.query(
+        "UPDATE subscriptions SET last_status = 'available', notified_at = NOW() WHERE domain = $1 AND email = $2",
+        [domain, email]
+      );
+      return 'available';
+    }
+    const finalStatus = status || 'taken';
+    await db.query(
+      'UPDATE subscriptions SET last_status = $3, notified_at = NULL WHERE domain = $1 AND email = $2',
+      [domain, email, finalStatus]
+    );
+    return finalStatus;
+  } catch (err) {
+    console.warn(`Détection de statut immédiate échouée pour ${domain}:`, err.message);
+    return null;
+  }
+}
+
 // ─── Route POST /api/subscribe ─────────────────────────────────────────────────
 app.post('/api/subscribe', async (req, res) => {
   const { domain, email } = req.body;
@@ -549,7 +577,8 @@ app.post('/api/subscribe', async (req, res) => {
       DO UPDATE SET active = TRUE, created_at = NOW()
     `, [domain.toLowerCase(), email.toLowerCase()]);
     console.log(`📬 Nouvel abonnement : ${email} surveille ${domain}`);
-    return res.json({ success: true });
+    const last_status = await detectAndStoreStatus(domain.toLowerCase(), email.toLowerCase());
+    return res.json({ success: true, last_status });
   } catch (err) {
     console.error('Erreur DB subscribe:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -654,7 +683,8 @@ app.post('/api/manage/subscribe', async (req, res) => {
     `, [domain.toLowerCase(), email.toLowerCase()]);
 
     console.log(`📬 Ajout depuis manage : ${email} surveille ${domain}`);
-    return res.json({ success: true });
+    const last_status = await detectAndStoreStatus(domain.toLowerCase(), email.toLowerCase());
+    return res.json({ success: true, last_status });
   } catch (err) {
     console.error('Erreur manage/subscribe:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -815,7 +845,11 @@ app.get('/api/test-push', async (req, res) => {
       body: 'Super, ce domaine vient de se libérer ! Appuyez pour gérer votre alerte.',
       data: { type: 'domain_available', domain: TEST_DOMAIN, screen: 'manage', filter: 'available' },
     });
-    return res.json({ success: true, message: 'Notification "disponible" envoyée', domain: TEST_DOMAIN });
+    // Teste aussi le canal e-mail.
+    let emailSent = false;
+    try { await sendAlertEmail(email, TEST_DOMAIN); emailSent = true; }
+    catch (mailErr) { console.error('  ❌ Erreur envoi mail test-push:', mailErr.message); }
+    return res.json({ success: true, message: 'Notification "disponible" envoyée', domain: TEST_DOMAIN, emailSent });
   } catch (err) {
     console.error('Erreur /api/test-push:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -826,13 +860,18 @@ app.get('/api/test-taken', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
   try {
-    // Simule une reprise du domaine (available -> taken).
+    // Simule une reprise du domaine (available -> taken). On horodate la reprise
+    // (notified_at) pour déclencher le "flash rouge" côté client.
     await db.query(
-      "UPDATE subscriptions SET last_status = 'taken', notified_at = NULL WHERE domain = $1 AND email = $2",
+      "UPDATE subscriptions SET last_status = 'taken', notified_at = NOW() WHERE domain = $1 AND email = $2",
       [TEST_DOMAIN, email.toLowerCase()]
     );
     await sendMissedPush(email, TEST_DOMAIN);
-    return res.json({ success: true, message: 'Notification "Dommage" envoyée', domain: TEST_DOMAIN });
+    // Teste aussi le canal e-mail.
+    let emailSent = false;
+    try { await sendMissedEmail(email, TEST_DOMAIN); emailSent = true; }
+    catch (mailErr) { console.error('  ❌ Erreur envoi mail test-taken:', mailErr.message); }
+    return res.json({ success: true, message: 'Notification "Dommage" envoyée', domain: TEST_DOMAIN, emailSent });
   } catch (err) {
     console.error('Erreur /api/test-taken:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -1134,8 +1173,15 @@ cron.schedule('0 * * * *', async () => {
             }
           }
         }
-        // On repasse en "pris" et on efface notified_at (le domaine n'est plus dispo).
-        await db.query('UPDATE subscriptions SET last_status = $2, notified_at = NULL, pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
+        // Si le domaine était disponible et vient d'être repris, on horodate la
+        // reprise (notified_at) pour la mise en évidence "flash rouge" côté client ;
+        // sinon on efface notified_at (le domaine n'est plus/ n'a jamais été dispo).
+        const wasAvailable = subs.some(s => s.last_status === 'available');
+        if (wasAvailable) {
+          await db.query('UPDATE subscriptions SET last_status = $2, notified_at = NOW(), pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
+        } else {
+          await db.query('UPDATE subscriptions SET last_status = $2, notified_at = NULL, pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
+        }
       }
 
       await new Promise(r => setTimeout(r, 1000));
