@@ -185,6 +185,10 @@
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M1 9.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Installer l'app
     </button>
+    <button id="notif-btn" onclick="enableNotifications()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.2a2.1 2.1 0 0 0-2.1 2.1c0 2.45-1 3.15-1 3.85 0 .39.31.7.7.7h4.8c.39 0 .7-.31.7-.7 0-.7-1-1.4-1-3.85A2.1 2.1 0 0 0 6.5 1.2ZM5.5 10a1 1 0 0 0 2 0" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Activer les notifications
+    </button>
     <a href="/manage.html" style="font-size:0.84rem;color:var(--accent);text-decoration:none;font-family:var(--sans);font-weight:500;">
       Gérer mes alertes →
     </a>
@@ -297,6 +301,8 @@
           body: JSON.stringify({ domain: currentDomain, email })
         });
         if (res.ok) {
+          localStorage.setItem('dw-email', email);
+          registerWebPushToken(email); // lie le token push web à ce compte si dispo
           document.getElementById('subscribe-confirm').style.display = 'flex';
           document.getElementById('email-input').value = '';
         } else { alert('Une erreur est survenue. Veuillez réessayer.'); }
@@ -356,26 +362,70 @@
 
     const messaging = firebase.messaging();
 
-    // Enregistre le service worker
+    let swRegistration = null;
+
+    // Enregistre le service worker (silencieux, aucune demande de permission)
     async function initPWA() {
       if (!('serviceWorker' in navigator)) return;
       try {
-        const reg = await navigator.serviceWorker.register('/sw.js');
+        swRegistration = await navigator.serviceWorker.register('/sw.js');
         console.log('✅ Service Worker enregistré');
-
-        // Demande la permission de notifications
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
-          if (token) {
-            console.log('🔔 Token FCM:', token);
-            // Envoie le token au serveur pour le lier à l'email si l'utilisateur s'abonne
-            localStorage.setItem('dw-fcm-token', token);
-          }
-        }
+        maybeShowNotifButton();
       } catch (err) {
         console.warn('PWA init:', err.message);
       }
+    }
+
+    // Vrai uniquement quand l'app est lancée en PWA installée (écran d'accueil),
+    // pas lors d'une navigation web classique dans un onglet de navigateur.
+    function isStandalone() {
+      return window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone === true;
+    }
+
+    // N'affiche le bouton d'activation qu'en PWA installée, et seulement si
+    // l'utilisateur n'a pas encore fait de choix (permission « default »).
+    function maybeShowNotifButton() {
+      if (!('Notification' in window)) return;
+      if (!isStandalone()) return;
+      if (Notification.permission !== 'default') return;
+      const btn = document.getElementById('notif-btn');
+      if (btn) btn.style.display = 'inline-flex';
+    }
+
+    // Déclenché par un clic explicite de l'utilisateur (jamais automatiquement).
+    async function enableNotifications() {
+      const btn = document.getElementById('notif-btn');
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted' && swRegistration) {
+          const token = await messaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swRegistration });
+          if (token) {
+            console.log('🔔 Token FCM web:', token);
+            localStorage.setItem('dw-fcm-token', token);
+            // Si l'utilisateur s'est déjà identifié sur ce navigateur, on lie
+            // tout de suite le token à son compte ; sinon ce sera fait lors d'un
+            // abonnement ou d'une connexion sur « Gérer mes alertes ».
+            registerWebPushToken(localStorage.getItem('dw-email'));
+          }
+        }
+      } catch (err) {
+        console.warn('Notifications:', err.message);
+      } finally {
+        if (btn) btn.style.display = 'none';
+      }
+    }
+
+    // Lie le token push web (s'il existe) au compte de l'utilisateur.
+    async function registerWebPushToken(email) {
+      const token = localStorage.getItem('dw-fcm-token');
+      if (!token || !email) return;
+      try {
+        await fetch(`${API_BASE}/api/manage/push-token`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, token, platform: 'web' })
+        });
+      } catch { /* silencieux : réessaiera au prochain abonnement/connexion */ }
     }
 
     // Lance la PWA après le chargement

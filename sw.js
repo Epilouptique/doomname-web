@@ -19,13 +19,16 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(function(payload) {
   console.log('[sw.js] Message reçu en arrière-plan:', payload);
 
-  const { title, body, icon } = payload.notification || {};
+  // Messages data-only : titre/corps sont dans payload.data
+  // (repli sur payload.notification pour toute compatibilité).
+  const data = payload.data || {};
+  const notif = payload.notification || {};
 
-  self.registration.showNotification(title || 'DoomName', {
-    body:  body  || 'Un domaine que vous surveillez est disponible !',
-    icon:  icon  || '/icon-192.png',
+  self.registration.showNotification(data.title || notif.title || 'DoomName', {
+    body:  data.body || notif.body || 'Un domaine que vous surveillez est disponible !',
+    icon:  notif.icon || '/icon-192.png',
     badge: '/icon-192.png',
-    data:  payload.data || {}
+    data:  data
   });
 });
 

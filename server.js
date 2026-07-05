@@ -8,6 +8,7 @@ const whois      = require('whois-json');
 const cron       = require('node-cron');
 const { Pool }   = require('pg');
 const { Resend } = require('resend');
+const admin      = require('firebase-admin');
 
 const app  = express();
 const port = process.env.PORT || 3000;
@@ -69,6 +70,16 @@ async function initDB() {
       updated_at            TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      token      VARCHAR(255) PRIMARY KEY,
+      email      VARCHAR(255) NOT NULL,
+      platform   VARCHAR(20),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_email ON push_tokens (email)`);
   console.log('✅ Base de données prête');
 }
 
@@ -118,6 +129,108 @@ async function sendAlertEmail(email, domain) {
   });
 }
 
+// ─── Firebase Admin (push web via FCM) ─────────────────────────────────────────
+// Initialisé depuis la variable d'env FIREBASE_SERVICE_ACCOUNT (contenu JSON de
+// la clé de service du projet domainwatch-7da80), avec repli sur le fichier
+// pointé par GOOGLE_APPLICATION_CREDENTIALS en développement local.
+let firebaseReady = false;
+try {
+  let credential = null;
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    credential = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    credential = admin.credential.applicationDefault();
+  }
+  if (credential) {
+    admin.initializeApp({ credential });
+    firebaseReady = true;
+    console.log('✅ Firebase Admin initialisé (push web FCM disponible)');
+  } else {
+    console.warn('⚠️  FIREBASE_SERVICE_ACCOUNT absent : push web FCM désactivé');
+  }
+} catch (err) {
+  console.error('❌ Init Firebase Admin échouée (push web désactivé):', err.message);
+}
+
+// ─── Notifications push ────────────────────────────────────────────────────────
+// Deux canaux selon la plateforme du token :
+//   • app mobile (Expo)  → API HTTPS Expo Push (exp.host)
+//   • web / PWA (FCM)    → Firebase Admin (FCM v1)
+// On distingue par la colonne `platform`, avec repli sur la forme du token
+// (les tokens Expo commencent par "ExponentPushToken").
+async function sendExpoPush(tokens, { title, body, data }) {
+  if (tokens.length === 0) return;
+  const messages = tokens.map(to => ({
+    to, sound: 'default', title, body, data: data || {}, channelId: 'default',
+  }));
+  try {
+    const res = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(messages),
+    });
+    const json = await res.json();
+    const tickets = Array.isArray(json?.data) ? json.data : [];
+    for (let i = 0; i < tickets.length; i++) {
+      if (tickets[i]?.details?.error === 'DeviceNotRegistered') {
+        await db.query('DELETE FROM push_tokens WHERE token = $1', [tokens[i]]);
+      }
+    }
+  } catch (err) {
+    console.error(`  ❌ Erreur envoi Expo push:`, err.message);
+  }
+}
+
+async function sendWebPush(tokens, { title, body, data }) {
+  if (tokens.length === 0) return;
+  if (!firebaseReady) {
+    console.warn(`  ⚠️  ${tokens.length} token(s) web ignoré(s) : Firebase Admin non configuré`);
+    return;
+  }
+  // Message DATA-ONLY : c'est sw.js (onBackgroundMessage) qui affiche la
+  // notification, ce qui évite un doublon avec l'affichage auto du SDK.
+  // FCM n'accepte que des valeurs string dans `data`.
+  const stringData = { title, body, url: '/manage.html' };
+  for (const [k, v] of Object.entries(data || {})) stringData[k] = String(v);
+  try {
+    const res = await admin.messaging().sendEachForMulticast({
+      tokens,
+      data: stringData,
+      webpush: { headers: { Urgency: 'high' } },
+    });
+    // Purge des tokens web devenus invalides.
+    res.responses.forEach((r, i) => {
+      const code = r.error?.code;
+      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+        db.query('DELETE FROM push_tokens WHERE token = $1', [tokens[i]]).catch(() => {});
+      }
+    });
+  } catch (err) {
+    console.error(`  ❌ Erreur envoi web push (FCM):`, err.message);
+  }
+}
+
+async function sendPushNotification(email, payload) {
+  let rows;
+  try {
+    ({ rows } = await db.query('SELECT token, platform FROM push_tokens WHERE email = $1', [email.toLowerCase()]));
+  } catch (err) {
+    console.error(`  ❌ Erreur lecture push_tokens pour ${email}:`, err.message);
+    return;
+  }
+  if (rows.length === 0) return;
+
+  const isWeb = r => r.platform === 'web' || (r.platform == null && !String(r.token).startsWith('ExponentPushToken'));
+  const webTokens  = rows.filter(isWeb).map(r => r.token);
+  const expoTokens = rows.filter(r => !isWeb(r)).map(r => r.token);
+
+  await Promise.all([
+    sendExpoPush(expoTokens, payload),
+    sendWebPush(webTokens, payload),
+  ]);
+  console.log(`  📲 Push envoyé à ${email} (${expoTokens.length} mobile, ${webTokens.length} web)`);
+}
+
 const STATUS_LABELS = {
   gracePeriod:      { title: 'en grâce de renouvellement',     detail: "Son propriétaire n'a pas encore renouvelé le domaine. Il dispose d'un délai pour le faire avant qu'il ne passe en période de rédemption." },
   redemptionPeriod: { title: 'en période de rédemption',        detail: "Le domaine n'a pas été renouvelé et entre dans sa dernière phase avant suppression. Il pourrait bientôt devenir disponible." },
@@ -145,6 +258,16 @@ async function sendStatusChangeEmail(email, domain, status) {
         </p>
       </div>
     `
+  });
+}
+
+async function sendStatusChangePush(email, domain, status) {
+  const info = STATUS_LABELS[status];
+  if (!info) return;
+  await sendPushNotification(email, {
+    title: `🟠 ${domain} est ${info.title}`,
+    body: info.detail,
+    data: { type: 'status_change', domain, status, screen: 'manage' },
   });
 }
 
@@ -613,6 +736,62 @@ app.patch('/api/manage/settings', async (req, res) => {
   }
 });
 
+// ─── Enregistrement d'un token push (app mobile) ───────────────────────────────
+app.post('/api/manage/push-token', async (req, res) => {
+  const { email, token, platform } = req.body || {};
+  if (!email || !token) return res.status(400).json({ error: 'E-mail et token requis' });
+  try {
+    await db.query(`
+      INSERT INTO push_tokens (token, email, platform, updated_at)
+      VALUES ($1, $2, $3, NOW())
+      ON CONFLICT (token) DO UPDATE SET email = $2, platform = $3, updated_at = NOW()
+    `, [token, email.toLowerCase(), platform || null]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur enregistrement push-token:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Dissocie un token (déconnexion) : on le retire pour ne plus notifier ce compte.
+app.delete('/api/manage/push-token', async (req, res) => {
+  const { token } = req.body || {};
+  if (!token) return res.status(400).json({ error: 'Token requis' });
+  try {
+    await db.query('DELETE FROM push_tokens WHERE token = $1', [token]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur suppression push-token:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// TODO: supprimer après tests push
+app.get('/api/test-push', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+  try {
+    const { rows } = await db.query('SELECT token, platform FROM push_tokens WHERE email = $1', [email.toLowerCase()]);
+    if (rows.length === 0) return res.json({ success: false, message: 'Aucun token push pour cet e-mail', tokens: 0 });
+
+    await sendPushNotification(email, {
+      title: '🟢 test-doomname.com est disponible !',
+      body: 'Ceci est une notification de test envoyée depuis DoomName.',
+      data: { type: 'domain_available', domain: 'test-doomname.com', screen: 'manage' },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Notification de test envoyée',
+      tokens: rows.length,
+      platforms: rows.map(r => r.platform || 'inconnu'),
+    });
+  } catch (err) {
+    console.error('Erreur /api/test-push:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ─── Suppression de compte ──────────────────────────────────────────────────────
 app.post('/api/account/delete-request', async (req, res) => {
   const { email } = req.body;
@@ -782,6 +961,12 @@ async function confirmAvailability(domain) {
         } catch (mailErr) {
           console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
         }
+        // Notification push (canal distinct des alertes e-mail) — ouvre "Mes alertes".
+        await sendPushNotification(email, {
+          title: `🟢 ${domain} est disponible !`,
+          body: `Le domaine ${domain} vient de se libérer. Réservez-le vite !`,
+          data: { type: 'domain_available', domain, screen: 'manage' },
+        });
       }
       await db.query(
         'UPDATE subscriptions SET active = FALSE, last_status = $2, pending_confirmation_since = NULL WHERE domain = $1',
@@ -863,16 +1048,21 @@ cron.schedule('0 * * * *', async () => {
         console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
         for (const { email, last_status } of subs) {
           if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
-            try {
-              const settings = await getUserSettings(email);
-              if (settings.email_alerts_enabled && settings.grace_alerts_enabled) {
-                await sendStatusChangeEmail(email, domain, status);
-                console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
-              } else {
-                console.log(`  🔕 Alertes de grâce/rédemption désactivées pour ${email}, envoi ignoré`);
+            const settings = await getUserSettings(email);
+            // La préférence "Période de grâce" pilote toute cette catégorie
+            // (grâce / rédemption / suppression), e-mail comme push.
+            if (settings.grace_alerts_enabled) {
+              if (settings.email_alerts_enabled) {
+                try {
+                  await sendStatusChangeEmail(email, domain, status);
+                  console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
+                } catch (mailErr) {
+                  console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
+                }
               }
-            } catch (mailErr) {
-              console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
+              await sendStatusChangePush(email, domain, status);
+            } else {
+              console.log(`  🔕 Alertes de grâce/rédemption désactivées pour ${email}, envoi ignoré`);
             }
           }
         }

@@ -320,6 +320,19 @@
     let allSubs   = [];
     let currentFilter = 'all';
     let searchQuery = '';
+
+    // Associe le token push web (récupéré en PWA installée sur la page d'accueil)
+    // au compte connecté, pour que le backend puisse notifier ce navigateur.
+    async function registerWebPushToken(email) {
+      const token = localStorage.getItem('dw-fcm-token');
+      if (!token || !email) return;
+      try {
+        await fetch(`${API_BASE}/api/manage/push-token`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, token, platform: 'web' })
+        });
+      } catch { /* réessaiera à la prochaine connexion */ }
+    }
     let currentPage = 1;
     const PAGE_SIZE = 20;
 
@@ -408,6 +421,8 @@
         const data = await res.json();
         if (data.success) {
           userEmail = data.email;
+          localStorage.setItem('dw-email', userEmail);
+          registerWebPushToken(userEmail); // associe un éventuel token push web à ce compte
           document.getElementById('user-email-display').textContent = userEmail;
           showView('view-manage');
           await loadSubscriptions();
