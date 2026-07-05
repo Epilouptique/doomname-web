@@ -798,6 +798,47 @@ app.delete('/api/manage/push-token', async (req, res) => {
   }
 });
 
+// ─── Routes de test push (à retirer après validation) ──────────────────────────
+const TEST_DOMAIN = 'test-doomname.com';
+
+app.get('/api/test-push', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+  try {
+    // Simule une disponibilité confirmée pour ce compte.
+    await db.query(
+      "UPDATE subscriptions SET last_status = 'available', notified_at = NOW() WHERE domain = $1 AND email = $2",
+      [TEST_DOMAIN, email.toLowerCase()]
+    );
+    await sendPushNotification(email, {
+      title: `🟢 ${TEST_DOMAIN} est disponible !`,
+      body: 'Super, ce domaine vient de se libérer ! Appuyez pour gérer votre alerte.',
+      data: { type: 'domain_available', domain: TEST_DOMAIN, screen: 'manage', filter: 'available' },
+    });
+    return res.json({ success: true, message: 'Notification "disponible" envoyée', domain: TEST_DOMAIN });
+  } catch (err) {
+    console.error('Erreur /api/test-push:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.get('/api/test-taken', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+  try {
+    // Simule une reprise du domaine (available -> taken).
+    await db.query(
+      "UPDATE subscriptions SET last_status = 'taken', notified_at = NULL WHERE domain = $1 AND email = $2",
+      [TEST_DOMAIN, email.toLowerCase()]
+    );
+    await sendMissedPush(email, TEST_DOMAIN);
+    return res.json({ success: true, message: 'Notification "Dommage" envoyée', domain: TEST_DOMAIN });
+  } catch (err) {
+    console.error('Erreur /api/test-taken:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ─── Suppression de compte ──────────────────────────────────────────────────────
 app.post('/api/account/delete-request', async (req, res) => {
   const { email } = req.body;
