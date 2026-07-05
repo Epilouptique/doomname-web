@@ -539,6 +539,9 @@ app.get('/api/check', async (req, res) => {
 // 'available' (+ notified_at) pour qu'il apparaisse aussitôt dans le filtre
 // "Disponible". Robuste aux erreurs WHOIS (garde le défaut 'taken' le cas échéant).
 // N'interfère pas avec la confirmation différée : on ne fait qu'écrire last_status.
+// IMPORTANT : ne JAMAIS envoyer d'e-mail ni de push ici. Les notifications ne
+// partent que du cron et des routes de test — l'ajout d'une surveillance (même
+// 'available') reste totalement silencieux.
 async function detectAndStoreStatus(domain, email) {
   try {
     const whoisData = await getWhoisWithCache(domain);
