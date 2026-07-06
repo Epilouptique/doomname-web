@@ -42,6 +42,7 @@ async function initDB() {
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_status VARCHAR(32) DEFAULT 'taken'`);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_confirmation_since TIMESTAMPTZ`);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ`);
+  await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS lang VARCHAR(2) DEFAULT 'fr'`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS magic_links (
       id         SERIAL PRIMARY KEY,
@@ -100,6 +101,15 @@ async function getUserSettings(email) {
   const { rows } = await db.query('SELECT * FROM user_settings WHERE email = $1', [email.toLowerCase()]);
   if (rows.length > 0) return rows[0];
   return { email: email.toLowerCase(), email_alerts_enabled: true, grace_alerts_enabled: true };
+}
+
+// Langue préférée (FR par défaut) déduite des abonnements de l'utilisateur.
+function normLang(l) { return l === 'en' ? 'en' : 'fr'; }
+async function getUserLang(email) {
+  try {
+    const { rows } = await db.query('SELECT lang FROM subscriptions WHERE email = $1 ORDER BY created_at DESC LIMIT 1', [email.toLowerCase()]);
+    return normLang(rows[0]?.lang);
+  } catch { return 'fr'; }
 }
 
 // ─── Token de review permanent pour Google Play ────────────────────────────────
@@ -165,12 +175,16 @@ async function createDeleteToken(email) {
   return token;
 }
 
-// Footer légal ajouté à TOUS les e-mails.
-function legalFooter(deleteUrl) {
+// Footer légal ajouté à TOUS les e-mails (FR/EN).
+function legalFooter(deleteUrl, lang = 'fr') {
+  const t = lang === 'en'
+    ? `This message was sent via <a href="${SITE_URL}" style="color:#999">doomname.com</a>.<br>
+       If you did not sign up, you can <a href="${deleteUrl}" style="color:#999">delete your account here</a>.`
+    : `Ce message a été envoyé via <a href="${SITE_URL}" style="color:#999">doomname.com</a>.<br>
+       Si vous n'êtes pas à l'origine de cette inscription, vous pouvez <a href="${deleteUrl}" style="color:#999">supprimer votre compte ici</a>.`;
   return `
     <p style="color:#b0b0b0;font-size:0.72rem;margin-top:2.5rem;border-top:1px solid #eee;padding-top:1rem;line-height:1.6">
-      Ce message a été envoyé via <a href="${SITE_URL}" style="color:#999">doomname.com</a>.<br>
-      Si vous n'êtes pas à l'origine de cette inscription, vous pouvez <a href="${deleteUrl}" style="color:#999">supprimer votre compte ici</a>.
+      ${t}
     </p>`;
 }
 
@@ -178,13 +192,13 @@ function legalFooter(deleteUrl) {
 // version texte brut (multipart), et en-tête List-Unsubscribe sur les e-mails
 // d'alerte uniquement (opts.listUnsub) — jamais sur les magic links.
 async function sendEmail(email, subject, innerHtml, opts = {}) {
-  const { listUnsub = false } = opts;
+  const { listUnsub = false, lang = 'fr' } = opts;
   let footer = '';
   let deleteUrl = '';
   try {
     const token = await createDeleteToken(email);
     deleteUrl = `${SITE_URL}/manage.html?token=${token}`;
-    footer = legalFooter(deleteUrl);
+    footer = legalFooter(deleteUrl, lang);
   } catch (err) {
     console.error('  ⚠️  Footer de suppression non généré:', err.message);
   }
@@ -194,8 +208,12 @@ async function sendEmail(email, subject, innerHtml, opts = {}) {
         ${innerHtml}
         ${footer}
       </div>`;
-  const text = htmlToText(innerHtml) +
-    (deleteUrl ? `\n\n—\nEnvoyé via doomname.com\nGérer ou supprimer votre compte : ${deleteUrl}` : '');
+  const textFooter = deleteUrl
+    ? (lang === 'en'
+        ? `\n\n—\nSent via doomname.com\nManage or delete your account: ${deleteUrl}`
+        : `\n\n—\nEnvoyé via doomname.com\nGérer ou supprimer votre compte : ${deleteUrl}`)
+    : '';
+  const text = htmlToText(innerHtml) + textFooter;
 
   const headers = {};
   if (listUnsub && deleteUrl) {
@@ -213,17 +231,21 @@ async function sendEmail(email, subject, innerHtml, opts = {}) {
   });
 }
 
-async function sendAlertEmail(email, domain) {
-  await sendEmail(email, `🟢 ${domain} est disponible`, `
+async function sendAlertEmail(email, domain, lang = 'fr') {
+  const en = lang === 'en';
+  const box = `<div style="background:#f0faf5;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0"><strong style="font-size:1.3rem;font-family:monospace">${domain}</strong></div>`;
+  const subject = en ? `🟢 ${domain} is available` : `🟢 ${domain} est disponible`;
+  const body = en ? `
+    <h2 style="color:#34c97a">Good news!</h2>
+    <p>A domain you were watching is now available:</p>${box}
+    <p>Register it quickly with the registrar of your choice before someone else does!</p>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">You are receiving this email because you set up an alert on DoomName.</p>`
+  : `
     <h2 style="color:#34c97a">Bonne nouvelle !</h2>
-    <p>Le domaine que vous surveilliez est désormais disponible :</p>
-    <div style="background:#f0faf5;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
-      <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
-    </div>
+    <p>Le domaine que vous surveilliez est désormais disponible :</p>${box}
     <p>Réservez-le rapidement auprès du registrar de votre choix avant qu'il ne soit pris !</p>
-    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-      Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.
-    </p>`, { listUnsub: true });
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">Vous recevez cet e-mail car vous avez activé une alerte sur DoomName.</p>`;
+  await sendEmail(email, subject, body, { listUnsub: true, lang });
 }
 
 // ─── Firebase Admin (push web via FCM) ─────────────────────────────────────────
@@ -329,93 +351,116 @@ async function sendPushNotification(email, payload) {
 }
 
 const STATUS_LABELS = {
-  gracePeriod:      { title: 'en grâce de renouvellement',     detail: "Son propriétaire n'a pas encore renouvelé le domaine. Il dispose d'un délai pour le faire avant qu'il ne passe en période de rédemption." },
-  redemptionPeriod: { title: 'en période de rédemption',        detail: "Le domaine n'a pas été renouvelé et entre dans sa dernière phase avant suppression. Il pourrait bientôt devenir disponible." },
-  pendingDelete:    { title: 'sur le point d\'être supprimé',   detail: "Le domaine est en cours de suppression définitive par le registre. Il devrait devenir disponible très prochainement." },
+  gracePeriod: {
+    fr: { title: 'en grâce de renouvellement', detail: "Son propriétaire n'a pas encore renouvelé le domaine. Il dispose d'un délai pour le faire avant qu'il ne passe en période de rédemption." },
+    en: { title: 'in renewal grace period', detail: "The owner has not renewed the domain yet. They have a grace period before it enters the redemption phase." },
+  },
+  redemptionPeriod: {
+    fr: { title: 'en période de rédemption', detail: "Le domaine n'a pas été renouvelé et entre dans sa dernière phase avant suppression. Il pourrait bientôt devenir disponible." },
+    en: { title: 'in redemption period', detail: "The domain was not renewed and is entering its final phase before deletion. It may soon become available." },
+  },
+  pendingDelete: {
+    fr: { title: 'sur le point d\'être supprimé', detail: "Le domaine est en cours de suppression définitive par le registre. Il devrait devenir disponible très prochainement." },
+    en: { title: 'about to be deleted', detail: "The domain is being permanently deleted by the registry. It should become available very soon." },
+  },
 };
+function statusLabel(status, lang) { return STATUS_LABELS[status]?.[lang === 'en' ? 'en' : 'fr']; }
 
-async function sendStatusChangeEmail(email, domain, status) {
-  const info = STATUS_LABELS[status];
+async function sendStatusChangeEmail(email, domain, status, lang = 'fr') {
+  const info = statusLabel(status, lang);
   if (!info) return;
-  await sendEmail(email, `🟠 ${domain} est désormais ${info.title}`, `
+  const en = lang === 'en';
+  const box = `<div style="background:#fbf3e8;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0"><strong style="font-size:1.2rem;font-family:monospace">${domain}</strong><p style="margin-top:0.5rem;color:#555">${info.detail}</p></div>`;
+  const subject = en ? `🟠 ${domain} is now ${info.title}` : `🟠 ${domain} est désormais ${info.title}`;
+  const body = en ? `
+    <h2 style="color:#ba7517">Status change detected</h2>
+    <p>A domain you are watching just changed status:</p>${box}
+    <p>Its previous owner seems to have given up on renewal. Stay tuned — we will alert you as soon as it is fully available.</p>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">You are receiving this email because you watch this domain on DoomName.</p>`
+  : `
     <h2 style="color:#ba7517">Changement d'état détecté</h2>
-    <p>Le domaine que vous surveillez vient de changer de statut :</p>
-    <div style="background:#fbf3e8;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
-      <strong style="font-size:1.2rem;font-family:monospace">${domain}</strong>
-      <p style="margin-top:0.5rem;color:#555">${info.detail}</p>
-    </div>
+    <p>Le domaine que vous surveillez vient de changer de statut :</p>${box}
     <p>Son ancien propriétaire semble avoir abandonné son renouvellement. Restez attentif, une alerte vous sera envoyée dès qu'il sera totalement disponible.</p>
-    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-      Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
-    </p>`, { listUnsub: true });
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.</p>`;
+  await sendEmail(email, subject, body, { listUnsub: true, lang });
 }
 
-async function sendStatusChangePush(email, domain, status) {
-  const info = STATUS_LABELS[status];
+async function sendStatusChangePush(email, domain, status, lang = 'fr') {
+  const info = statusLabel(status, lang);
   if (!info) return;
   await sendPushNotification(email, {
-    title: `🟠 ${domain} est ${info.title}`,
+    title: `🟠 ${domain} ${lang === 'en' ? 'is' : 'est'} ${info.title}`,
     body: info.detail,
     data: { type: 'status_change', domain, status, screen: 'manage' },
   });
 }
 
 // « Dommage » : un domaine signalé disponible vient d'être repris par quelqu'un.
-async function sendMissedEmail(email, domain) {
-  await sendEmail(email, `${domain} vient d'être repris`, `
+async function sendMissedEmail(email, domain, lang = 'fr') {
+  const en = lang === 'en';
+  const box = `<div style="background:#fdeceb;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0"><strong style="font-size:1.3rem;font-family:monospace">${domain}</strong></div>`;
+  const subject = en ? `${domain} was just registered` : `${domain} vient d'être repris`;
+  const body = en ? `
+    <h2 style="color:#e24b4a">Too bad…</h2>
+    <p>A domain you were watching was just registered:</p>${box}
+    <p>Someone registered this domain before you. <strong>Your alert stays active</strong>: we keep watching it and will let you know if it becomes available again.</p>
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">You are receiving this email because you watch this domain on DoomName.</p>`
+  : `
     <h2 style="color:#e24b4a">Dommage…</h2>
-    <p>Le domaine que vous surveilliez vient d'être enregistré :</p>
-    <div style="background:#fdeceb;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0">
-      <strong style="font-size:1.3rem;font-family:monospace">${domain}</strong>
-    </div>
+    <p>Le domaine que vous surveilliez vient d'être enregistré :</p>${box}
     <p>Quelqu'un a enregistré ce domaine avant vous. <strong>Votre alerte reste active</strong> : nous continuons à le surveiller et vous préviendrons s'il se libère de nouveau.</p>
-    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-      Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.
-    </p>`, { listUnsub: true });
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">Vous recevez cet e-mail car vous surveillez ce domaine sur DoomName.</p>`;
+  await sendEmail(email, subject, body, { listUnsub: true, lang });
 }
 
-async function sendMissedPush(email, domain) {
+async function sendMissedPush(email, domain, lang = 'fr') {
+  const en = lang === 'en';
   await sendPushNotification(email, {
-    title: `😔 ${domain} vient d'être pris`,
-    body: 'Quelqu\'un a enregistré ce domaine avant vous. Votre alerte reste active.',
+    title: en ? `😔 ${domain} was just registered` : `😔 ${domain} vient d'être pris`,
+    body: en ? 'Someone registered this domain before you. Your alert stays active.' : 'Quelqu\'un a enregistré ce domaine avant vous. Votre alerte reste active.',
     data: { type: 'domain_taken', domain, screen: 'manage', filter: 'active' },
   });
 }
 
-async function sendAccountDeleteEmail(email, token) {
+async function sendAccountDeleteEmail(email, token, lang = 'fr') {
   const APP_URL = process.env.APP_URL || 'http://localhost:3000';
   const confirmLink = `${APP_URL}/api/account/confirm-delete?token=${token}`;
-  await sendEmail(email, '⚠️ Confirmer la suppression de votre compte DoomName', `
+  const en = lang === 'en';
+  const btn = `<a href="${confirmLink}" style="display:inline-block;background:#e24b4a;color:white;padding:0.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">${en ? 'Confirm deletion →' : 'Confirmer la suppression →'}</a>`;
+  const subject = en ? 'Confirm the deletion of your DoomName account' : '⚠️ Confirmer la suppression de votre compte DoomName';
+  const body = en ? `
+    <h2 style="color:#e24b4a">Account deletion</h2>
+    <p>A request to delete the account for this email address was made.</p>
+    <p>This will <strong>permanently</strong> delete every domain you watch. It is irreversible.</p>${btn}
+    <p style="color:#999;font-size:0.85rem;margin-top:1.5rem">This link is valid for 20 minutes. If you did not request this, ignore this email.</p>`
+  : `
     <h2 style="color:#e24b4a">Suppression de compte</h2>
     <p>Une demande de suppression de compte a été effectuée pour cette adresse e-mail.</p>
-    <p>Cette action supprimera <strong>définitivement</strong> tous les noms de domaine que vous surveillez. Elle est irréversible.</p>
-    <a href="${confirmLink}"
-       style="display:inline-block;background:#e24b4a;color:white;padding:0.75rem 1.5rem;
-              border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
-      Confirmer la suppression →
-    </a>
-    <p style="color:#999;font-size:0.85rem;margin-top:1.5rem">Ce lien est valable 20 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>`);
+    <p>Cette action supprimera <strong>définitivement</strong> tous les noms de domaine que vous surveillez. Elle est irréversible.</p>${btn}
+    <p style="color:#999;font-size:0.85rem;margin-top:1.5rem">Ce lien est valable 20 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>`;
+  await sendEmail(email, subject, body, { lang });
 }
 
-async function sendMagicLinkEmail(email, token) {
+async function sendMagicLinkEmail(email, token, lang = 'fr') {
   const APP_URL = process.env.APP_URL || 'http://localhost:3000';
   // Page https intermédiaire (les clients mail comme Gmail suppriment les
   // liens vers des schémas personnalisés type doomname://) : elle tente
-  // d'ouvrir l'app sur mobile puis se replie automatiquement sur le site,
-  // y compris sur un navigateur de bureau où l'app n'existe pas.
+  // d'ouvrir l'app sur mobile puis se replie automatiquement sur le site.
   const link = `${APP_URL}/open-app.html?token=${token}`;
-  await sendEmail(email, 'Votre lien de connexion DoomName', `
+  const en = lang === 'en';
+  const btn = `<a href="${link}" style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">${en ? 'Open DoomName →' : 'Accéder à DoomName →'}</a>`;
+  const subject = en ? 'Your DoomName sign-in link' : 'Votre lien de connexion DoomName';
+  const body = en ? `
+    <h2 style="color:#d97757">Sign in to DoomName</h2>
+    <p>Click the button below to access your alerts.</p>
+    <p style="color:#999;font-size:0.85rem">This link is valid for <strong>20 minutes</strong> and can be used only once.</p>${btn}
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">If you did not request this link, ignore this email.</p>`
+  : `
     <h2 style="color:#d97757">Connexion à DoomName</h2>
     <p>Cliquez sur le bouton ci-dessous pour accéder à vos alertes.</p>
-    <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>
-    <a href="${link}"
-       style="display:inline-block;background:#d97757;color:white;padding:0.75rem 1.5rem;
-              border-radius:8px;text-decoration:none;font-weight:500;margin-top:1rem">
-      Accéder à DoomName →
-    </a>
-    <p style="color:#999;font-size:0.8rem;margin-top:2rem">
-      Si vous n'avez pas demandé ce lien, ignorez cet e-mail.
-    </p>`);
+    <p style="color:#999;font-size:0.85rem">Ce lien est valable <strong>20 minutes</strong> et ne peut être utilisé qu'une seule fois.</p>${btn}
+    <p style="color:#999;font-size:0.8rem;margin-top:2rem">Si vous n'avez pas demandé ce lien, ignorez cet e-mail.</p>`;
+  await sendEmail(email, subject, body, { lang });
 }
 
 async function sendApiKeyEmail(email, key, label) {
@@ -618,18 +663,18 @@ async function detectAndStoreStatus(domain, email) {
 
 // ─── Route POST /api/subscribe ─────────────────────────────────────────────────
 app.post('/api/subscribe', async (req, res) => {
-  const { domain, email } = req.body;
+  const { domain, email, lang } = req.body;
   if (!domain || !email) return res.status(400).json({ error: 'Domaine et e-mail requis' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide' });
   if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) return res.status(400).json({ error: 'Nom de domaine invalide' });
 
   try {
     await db.query(`
-      INSERT INTO subscriptions (domain, email, active)
-      VALUES ($1, $2, TRUE)
+      INSERT INTO subscriptions (domain, email, active, lang)
+      VALUES ($1, $2, TRUE, $3)
       ON CONFLICT (domain, email)
-      DO UPDATE SET active = TRUE, created_at = NOW()
-    `, [domain.toLowerCase(), email.toLowerCase()]);
+      DO UPDATE SET active = TRUE, created_at = NOW(), lang = $3
+    `, [domain.toLowerCase(), email.toLowerCase(), normLang(lang)]);
     console.log(`📬 Nouvel abonnement : ${email} surveille ${domain}`);
     const last_status = await detectAndStoreStatus(domain.toLowerCase(), email.toLowerCase());
     return res.json({ success: true, last_status });
@@ -641,15 +686,18 @@ app.post('/api/subscribe', async (req, res) => {
 
 // ─── Routes Magic Link ─────────────────────────────────────────────────────────
 app.post('/api/auth/request', async (req, res) => {
-  const { email } = req.body;
+  const { email, lang } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide' });
 
   const token     = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + 20 * 60 * 1000);
+  // Langue du magic link : celle passée par le client, sinon celle déjà connue
+  // pour ce compte (abonnements), sinon FR.
+  const emailLang = lang ? normLang(lang) : await getUserLang(email);
 
   try {
     await db.query('INSERT INTO magic_links (email, token, expires_at) VALUES ($1, $2, $3)', [email.toLowerCase(), token, expiresAt]);
-    await sendMagicLinkEmail(email.toLowerCase(), token);
+    await sendMagicLinkEmail(email.toLowerCase(), token, emailLang);
     console.log(`🔑 Magic link envoyé à ${email}`);
     return res.json({ success: true });
   } catch (err) {
@@ -751,7 +799,7 @@ app.delete('/api/manage/subscription/:id', async (req, res) => {
 });
 
 app.post('/api/manage/subscribe', async (req, res) => {
-  const { email, domain } = req.body;
+  const { email, domain, lang } = req.body;
   if (!email || !domain) return res.status(400).json({ error: 'E-mail et domaine requis' });
   if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) return res.status(400).json({ error: 'Nom de domaine invalide' });
 
@@ -763,9 +811,9 @@ app.post('/api/manage/subscribe', async (req, res) => {
     if (parseInt(totalRows[0].count) >= 200) return res.status(400).json({ error: 'Limite de 200 domaines atteinte — supprimez des entrées pour en ajouter de nouvelles' });
 
     await db.query(`
-      INSERT INTO subscriptions (domain, email, active) VALUES ($1, $2, TRUE)
-      ON CONFLICT (domain, email) DO UPDATE SET active = TRUE, created_at = NOW()
-    `, [domain.toLowerCase(), email.toLowerCase()]);
+      INSERT INTO subscriptions (domain, email, active, lang) VALUES ($1, $2, TRUE, $3)
+      ON CONFLICT (domain, email) DO UPDATE SET active = TRUE, created_at = NOW(), lang = $3
+    `, [domain.toLowerCase(), email.toLowerCase(), normLang(lang)]);
 
     console.log(`📬 Ajout depuis manage : ${email} surveille ${domain}`);
     const last_status = await detectAndStoreStatus(domain.toLowerCase(), email.toLowerCase());
@@ -984,7 +1032,7 @@ app.post('/api/account/delete-request', async (req, res) => {
       'INSERT INTO magic_links (email, token, expires_at, purpose) VALUES ($1, $2, $3, $4)',
       [email.toLowerCase(), token, expiresAt, 'delete']
     );
-    await sendAccountDeleteEmail(email.toLowerCase(), token);
+    await sendAccountDeleteEmail(email.toLowerCase(), token, await getUserLang(email));
     console.log(`🗑️  Demande de suppression de compte envoyée à ${email}`);
     return res.json({ success: true });
   } catch (err) {
@@ -1137,7 +1185,7 @@ async function confirmAvailability(domain) {
   console.log(`🔁 [${new Date().toISOString()}] Confirmation différée pour ${domain}…`);
   try {
     const { rows: subs } = await db.query(
-      'SELECT email FROM subscriptions WHERE domain = $1 AND active = TRUE AND pending_confirmation_since IS NOT NULL',
+      "SELECT email, COALESCE(lang,'fr') AS lang FROM subscriptions WHERE domain = $1 AND active = TRUE AND pending_confirmation_since IS NOT NULL",
       [domain]
     );
     if (subs.length === 0) {
@@ -1150,11 +1198,12 @@ async function confirmAvailability(domain) {
 
     if (available) {
       console.log(`✅ ${domain} confirmé disponible après le délai de 10 minutes`);
-      for (const { email } of subs) {
+      for (const { email, lang } of subs) {
+        const l = normLang(lang);
         try {
           const settings = await getUserSettings(email);
           if (settings.email_alerts_enabled) {
-            await sendAlertEmail(email, domain);
+            await sendAlertEmail(email, domain, l);
             console.log(`  📧 Alerte envoyée à ${email}`);
           } else {
             console.log(`  🔕 Alertes mail désactivées pour ${email}, envoi ignoré`);
@@ -1165,8 +1214,8 @@ async function confirmAvailability(domain) {
         // Notification push (canal distinct des alertes e-mail) — ouvre "Mes alertes"
         // filtré sur "Disponible".
         await sendPushNotification(email, {
-          title: `🟢 ${domain} est disponible !`,
-          body: 'Super, ce domaine vient de se libérer !',
+          title: l === 'en' ? `🟢 ${domain} is available!` : `🟢 ${domain} est disponible !`,
+          body: l === 'en' ? 'This domain was just released!' : 'Super, ce domaine vient de se libérer !',
           data: { type: 'domain_available', domain, screen: 'manage', filter: 'available' },
         });
       }
@@ -1238,7 +1287,7 @@ cron.schedule('0 * * * *', async () => {
       const whoisData = await whois(domain);
       const { available, status } = parseDomainAvailability(whoisData);
 
-      const { rows: subs } = await db.query('SELECT email, last_status, pending_confirmation_since FROM subscriptions WHERE domain = $1 AND active = TRUE', [domain]);
+      const { rows: subs } = await db.query("SELECT email, last_status, pending_confirmation_since, COALESCE(lang,'fr') AS lang FROM subscriptions WHERE domain = $1 AND active = TRUE", [domain]);
 
       if (available) {
         const alreadyAvailable = subs.some(s => s.last_status === 'available');
@@ -1256,19 +1305,20 @@ cron.schedule('0 * * * *', async () => {
         }
       } else {
         console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
-        for (const { email, last_status } of subs) {
+        for (const { email, last_status, lang } of subs) {
+          const l = normLang(lang);
           if (last_status === 'available') {
             // « Dommage » : le domaine était disponible et vient d'être repris.
             const settings = await getUserSettings(email);
             if (settings.email_alerts_enabled) {
               try {
-                await sendMissedEmail(email, domain);
+                await sendMissedEmail(email, domain, l);
                 console.log(`  📧 Notification "Dommage" (repris) envoyée à ${email}`);
               } catch (mailErr) {
                 console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
               }
             }
-            await sendMissedPush(email, domain);
+            await sendMissedPush(email, domain, l);
           } else if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
             const settings = await getUserSettings(email);
             // La préférence "Période de grâce" pilote toute cette catégorie
@@ -1276,13 +1326,13 @@ cron.schedule('0 * * * *', async () => {
             if (settings.grace_alerts_enabled) {
               if (settings.email_alerts_enabled) {
                 try {
-                  await sendStatusChangeEmail(email, domain, status);
+                  await sendStatusChangeEmail(email, domain, status, l);
                   console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
                 } catch (mailErr) {
                   console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
                 }
               }
-              await sendStatusChangePush(email, domain, status);
+              await sendStatusChangePush(email, domain, status, l);
             } else {
               console.log(`  🔕 Alertes de grâce/rédemption désactivées pour ${email}, envoi ignoré`);
             }
