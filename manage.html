@@ -472,7 +472,24 @@
           }
         } catch { /* on tente la connexion ci-dessous */ }
         await verifyToken(token);
+        return;
       }
+
+      // Pas de token : tente une reconnexion silencieuse via la session (cookie).
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/session`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (data.authenticated) {
+          userEmail = data.email;
+          localStorage.setItem('dw-email', userEmail);
+          registerWebPushToken(userEmail);
+          document.getElementById('user-email-display').textContent = userEmail;
+          showView('view-manage');
+          await loadSubscriptions();
+          await loadSettings();
+          applyPendingFilter();
+        }
+      } catch { /* pas de session : on reste sur l'écran de connexion */ }
     }
 
     async function confirmAccountDeletion() {
@@ -494,7 +511,7 @@
 
     async function verifyToken(token) {
       try {
-        const res  = await fetch(`${API_BASE}/api/auth/verify?token=${token}`);
+        const res  = await fetch(`${API_BASE}/api/auth/verify?token=${token}`, { credentials: 'same-origin' });
         const data = await res.json();
         if (data.success) {
           userEmail = data.email;
@@ -756,7 +773,12 @@
       btn.innerHTML = 'Surveiller'; btn.disabled = false;
     }
 
-    function logout() { userEmail = null; showView('view-login'); }
+    async function logout() {
+      try { await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'same-origin' }); } catch {}
+      localStorage.removeItem('dw-email');
+      userEmail = null;
+      showView('view-login');
+    }
 
     document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') requestMagicLink(); });
 

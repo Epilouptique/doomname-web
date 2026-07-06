@@ -2,6 +2,7 @@
 
 const express    = require('express');
 const cors       = require('cors');
+const cookieParser = require('cookie-parser');
 const path       = require('path');
 const crypto     = require('crypto');
 const whois      = require('whois-json');
@@ -17,6 +18,7 @@ const port = process.env.PORT || 3000;
 // ─── Middlewares ───────────────────────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname)));
 
 // ─── Base de données PostgreSQL ────────────────────────────────────────────────
@@ -82,6 +84,15 @@ async function initDB() {
     )
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_push_tokens_email ON push_tokens (email)`);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      token      VARCHAR(255) PRIMARY KEY,
+      email      VARCHAR(255) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_sessions_email ON sessions (email)`);
   console.log('✅ Base de données prête');
 }
 
@@ -104,6 +115,23 @@ async function ensureReviewToken() {
     );
     console.log('✅ Token de review Google Play créé');
   }
+}
+
+// ─── Sessions persistantes (cookie httpOnly 90 jours) ──────────────────────────
+const SESSION_COOKIE = 'dw_session';
+const SESSION_MS = 90 * 24 * 60 * 60 * 1000;
+
+async function createSession(res, email) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + SESSION_MS);
+  await db.query('INSERT INTO sessions (token, email, expires_at) VALUES ($1, $2, $3)', [token, email.toLowerCase(), expiresAt]);
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,   // inaccessible au JS → protège contre le vol par XSS
+    secure: true,     // HTTPS uniquement
+    sameSite: 'lax',
+    maxAge: SESSION_MS,
+    path: '/',
+  });
 }
 
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
@@ -648,11 +676,37 @@ app.get('/api/auth/verify', async (req, res) => {
       await db.query('UPDATE magic_links SET used = TRUE WHERE token = $1', [token]);
     }
 
+    // Ouvre une session persistante (cookie httpOnly) pour le web — évite de
+    // redemander un magic link à chaque visite. Sans effet néfaste pour l'app.
+    try { await createSession(res, rows[0].email); } catch (e) { console.error('createSession:', e.message); }
+
     return res.json({ success: true, email: rows[0].email });
   } catch (err) {
     console.error('Erreur verify token:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
   }
+});
+
+// Session en cours (cookie) — permet à manage.html de reconnecter sans magic link.
+app.get('/api/auth/session', async (req, res) => {
+  const token = req.cookies?.[SESSION_COOKIE];
+  if (!token) return res.json({ authenticated: false });
+  try {
+    const { rows } = await db.query('SELECT email FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+    if (rows.length === 0) return res.json({ authenticated: false });
+    return res.json({ authenticated: true, email: rows[0].email });
+  } catch (err) {
+    console.error('Erreur session:', err.message);
+    return res.json({ authenticated: false });
+  }
+});
+
+// Déconnexion : révoque la session en base et efface le cookie.
+app.post('/api/auth/logout', async (req, res) => {
+  const token = req.cookies?.[SESSION_COOKIE];
+  try { if (token) await db.query('DELETE FROM sessions WHERE token = $1', [token]); } catch {}
+  res.clearCookie(SESSION_COOKIE, { path: '/' });
+  return res.json({ success: true });
 });
 
 // ─── Routes de gestion des abonnements ────────────────────────────────────────
@@ -975,6 +1029,7 @@ app.get('/api/account/confirm-delete', async (req, res) => {
     await db.query('DELETE FROM api_keys WHERE email = $1', [email]);
     await db.query('DELETE FROM user_settings WHERE email = $1', [email]);
     await db.query('DELETE FROM push_tokens WHERE email = $1', [email]);
+    await db.query('DELETE FROM sessions WHERE email = $1', [email]);
     // Purge tous les magic links de ce compte (dont les liens de suppression 7j
     // encore valides générés dans les footers d'e-mails).
     await db.query('DELETE FROM magic_links WHERE email = $1', [email]);

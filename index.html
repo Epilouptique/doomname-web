@@ -247,6 +247,14 @@
   </section>
 
   <div style="text-align:center;margin-top:1.25rem">
+    <!-- Badge officiel Google Play (image FR/EN selon la langue active) -->
+    <div style="margin-bottom:0.75rem">
+      <a id="play-badge-link" href="#" target="_blank" rel="noopener" aria-label="Disponible sur Google Play">
+        <img id="play-badge-img" alt="Disponible sur Google Play"
+             src="https://play.google.com/intl/en_us/badges/static/images/badges/fr_badge_web_generic.png"
+             style="height:56px" />
+      </a>
+    </div>
     <button id="install-btn" onclick="installPWA()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M1 9.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Installer l'app
@@ -269,6 +277,13 @@
 
   <script>
     const API_BASE = 'https://www.doomname.com';
+
+    // TODO: fiche Play Store pas encore publiée — mettre à jour l'URL le moment venu.
+    const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=fr.dahuconcept.doomname';
+    (function initPlayBadge() {
+      const link = document.getElementById('play-badge-link');
+      if (link) link.href = PLAY_STORE_URL;
+    })();
 
     // ─── Thème ────────────────────────────────────────────────────────────────
     const DARK_HOUR_START = 20;
