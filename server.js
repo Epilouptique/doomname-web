@@ -11,6 +11,7 @@ const { Pool }   = require('pg');
 const { Resend } = require('resend');
 const { initializeApp, cert, applicationDefault } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
+const { OAuth2Client } = require('google-auth-library');
 
 const app  = express();
 const port = process.env.PORT || 3000;
@@ -147,6 +148,8 @@ async function createSession(res, email) {
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SITE_URL = 'https://doomname.com';
+// URL publique du backend (redirections OAuth). Sur Railway = domaine du service.
+const PUBLIC_URL = process.env.APP_URL || SITE_URL;
 // Expéditeur unique et cohérent pour TOUS les envois (délivrabilité).
 const EMAIL_FROM = process.env.EMAIL_FROM || 'DoomName <noreply@alert.doomname.com>';
 
@@ -755,6 +758,119 @@ app.post('/api/auth/logout', async (req, res) => {
   try { if (token) await db.query('DELETE FROM sessions WHERE token = $1', [token]); } catch {}
   res.clearCookie(SESSION_COOKIE, { path: '/' });
   return res.json({ success: true });
+});
+
+// ─── OAuth Google / GitHub ─────────────────────────────────────────────────────
+// Principe : quel que soit le canal (magic link, Google, GitHub), on aboutit à un
+// email VÉRIFIÉ, puis on ouvre exactement la même session que le magic link
+// (createSession → cookie httpOnly web) et on renvoie { success, email } (app).
+// L'email reste l'identifiant unique : un même email via 2 canaux = même compte.
+// Le flux magic link n'est jamais modifié — il reste le fallback universel.
+
+// Client IDs Google acceptés comme audience du jeton (web + Android + iOS).
+const GOOGLE_CLIENT_IDS = [
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_ID_ANDROID,
+  process.env.GOOGLE_CLIENT_ID_IOS,
+].filter(Boolean);
+const googleClient = new OAuth2Client();
+
+const GITHUB_CLIENT_ID     = process.env.GITHUB_CLIENT_ID;
+const GITHUB_CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
+
+// Expose l'ID client Google au front web (bouton Google Identity Services).
+app.get('/api/auth/config', (req, res) => {
+  res.json({
+    googleClientId: process.env.GOOGLE_CLIENT_ID || null,
+    githubEnabled: !!GITHUB_CLIENT_ID,
+  });
+});
+
+// Google : le front (web GIS ou app google-signin) envoie un ID token, on le
+// vérifie côté serveur puis on établit la session.
+app.post('/api/auth/google', async (req, res) => {
+  const { idToken } = req.body || {};
+  if (!idToken) return res.status(400).json({ error: 'idToken manquant' });
+  if (GOOGLE_CLIENT_IDS.length === 0) return res.status(503).json({ error: 'Google Sign-In non configuré' });
+  try {
+    const ticket  = await googleClient.verifyIdToken({ idToken, audience: GOOGLE_CLIENT_IDS });
+    const payload = ticket.getPayload();
+    if (!payload?.email || payload.email_verified !== true) {
+      return res.status(401).json({ error: 'E-mail Google non vérifié' });
+    }
+    const email = payload.email.toLowerCase();
+    try { await createSession(res, email); } catch (e) { console.error('createSession(google):', e.message); }
+    console.log(`🔐 Connexion Google : ${email}`);
+    return res.json({ success: true, email });
+  } catch (err) {
+    console.error('Erreur auth Google:', err.message);
+    return res.status(401).json({ error: 'Jeton Google invalide' });
+  }
+});
+
+// GitHub : flux redirection (le secret ne quitte jamais le serveur).
+//   ?platform=app  → à la fin, redirige vers un deep link doomname://auth?token=…
+//                    (jeton magic-link éphémère consommé par /api/auth/verify).
+//   sinon (web)    → createSession + redirige vers /manage.html.
+app.get('/api/auth/github', (req, res) => {
+  if (!GITHUB_CLIENT_ID) return res.status(503).send('GitHub OAuth non configuré');
+  const platform  = req.query.platform === 'app' ? 'app' : 'web';
+  const rnd        = crypto.randomBytes(16).toString('hex');
+  res.cookie('gh_oauth_state', rnd, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 10 * 60 * 1000, path: '/' });
+  const redirectUri = `${PUBLIC_URL}/api/auth/github/callback`;
+  const url = 'https://github.com/login/oauth/authorize'
+    + `?client_id=${encodeURIComponent(GITHUB_CLIENT_ID)}`
+    + '&scope=user:email'
+    + `&state=${rnd}.${platform}`
+    + `&redirect_uri=${encodeURIComponent(redirectUri)}`;
+  res.redirect(url);
+});
+
+app.get('/api/auth/github/callback', async (req, res) => {
+  const { code, state } = req.query;
+  const [stateRnd, platform] = String(state || '').split('.');
+  const cookieState = req.cookies?.gh_oauth_state;
+  if (!code || !stateRnd || stateRnd !== cookieState) return res.status(400).send('État OAuth invalide');
+  res.clearCookie('gh_oauth_state', { path: '/' });
+  try {
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        client_id: GITHUB_CLIENT_ID,
+        client_secret: GITHUB_CLIENT_SECRET,
+        code,
+        redirect_uri: `${PUBLIC_URL}/api/auth/github/callback`,
+      }),
+    });
+    const tokenData   = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+    if (!accessToken) return res.status(401).send('Échec de l’authentification GitHub');
+
+    const emailsRes = await fetch('https://api.github.com/user/emails', {
+      headers: { Authorization: `Bearer ${accessToken}`, 'User-Agent': 'DoomName', Accept: 'application/vnd.github+json' },
+    });
+    const emails  = await emailsRes.json();
+    const primary = Array.isArray(emails)
+      ? (emails.find(e => e.primary && e.verified) || emails.find(e => e.verified))
+      : null;
+    if (!primary) return res.status(401).send('Aucune adresse e-mail GitHub vérifiée');
+    const email = primary.email.toLowerCase();
+    console.log(`🔐 Connexion GitHub : ${email} (${platform})`);
+
+    if (platform === 'app') {
+      // Pont vers l'app : jeton éphémère (5 min) consommé par /api/auth/verify,
+      // comme un magic link → l'app récupère l'email et ouvre sa session locale.
+      const tok = crypto.randomBytes(32).toString('hex');
+      await db.query('INSERT INTO magic_links (email, token, expires_at) VALUES ($1, $2, $3)', [email, tok, new Date(Date.now() + 5 * 60 * 1000)]);
+      return res.redirect(`doomname://auth?token=${tok}`);
+    }
+    try { await createSession(res, email); } catch (e) { console.error('createSession(github):', e.message); }
+    return res.redirect('/manage.html');
+  } catch (err) {
+    console.error('Erreur callback GitHub:', err.message);
+    return res.status(500).send('Erreur serveur OAuth GitHub');
+  }
 });
 
 // ─── Routes de gestion des abonnements ────────────────────────────────────────

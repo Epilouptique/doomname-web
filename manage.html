@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/css/common.css" />
   <script src="/i18n.js"></script>
   <script src="/nav.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     .card { max-width: 600px; }
 
@@ -174,6 +175,14 @@
         <p data-i18n="manage.login_intro" style="font-size:0.86rem;color:var(--text-muted);margin-bottom:0.9rem;line-height:1.55">
           Entrez votre adresse e-mail pour recevoir un lien de connexion. Aucun mot de passe requis.
         </p>
+        <div id="oauth-buttons" style="display:flex;flex-direction:column;gap:10px">
+          <div id="google-btn" style="display:flex;justify-content:center;min-height:40px"></div>
+          <button class="btn-oauth" id="github-btn" type="button" onclick="loginWithGitHub()">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            <span data-i18n="auth.continue_github">Continuer avec GitHub</span>
+          </button>
+        </div>
+        <div class="oauth-sep"><span data-i18n="auth.or">ou</span></div>
         <div class="input-row">
           <input type="email" id="login-email" placeholder="vous@exemple.com" />
           <button class="btn btn-primary" id="login-btn" onclick="requestMagicLink()" data-i18n="manage.login_send">Envoyer le lien</button>
@@ -489,17 +498,20 @@
       try {
         const res = await fetch(`${API_BASE}/api/auth/session`, { credentials: 'same-origin' });
         const data = await res.json();
-        if (data.authenticated) {
-          userEmail = data.email;
-          localStorage.setItem('dw-email', userEmail);
-          registerWebPushToken(userEmail);
-          document.getElementById('user-email-display').textContent = userEmail;
-          showView('view-manage');
-          await loadSubscriptions();
-          await loadSettings();
-          applyPendingFilter();
-        }
+        if (data.authenticated) await enterSession(data.email);
       } catch { /* pas de session : on reste sur l'écran de connexion */ }
+    }
+
+    // Finalisation commune à TOUS les canaux (magic link, session, Google, GitHub).
+    async function enterSession(email) {
+      userEmail = email;
+      localStorage.setItem('dw-email', userEmail);
+      registerWebPushToken(userEmail);
+      document.getElementById('user-email-display').textContent = userEmail;
+      showView('view-manage');
+      await loadSubscriptions();
+      await loadSettings();
+      applyPendingFilter();
     }
 
     async function confirmAccountDeletion() {
@@ -523,17 +535,65 @@
       try {
         const res  = await fetch(`${API_BASE}/api/auth/verify?token=${token}`, { credentials: 'same-origin' });
         const data = await res.json();
-        if (data.success) {
-          userEmail = data.email;
-          localStorage.setItem('dw-email', userEmail);
-          registerWebPushToken(userEmail); // associe un éventuel token push web à ce compte
-          document.getElementById('user-email-display').textContent = userEmail;
-          showView('view-manage');
-          await loadSubscriptions();
-          await loadSettings();
-          applyPendingFilter(); // applique le filtre reçu via notification push
-        } else { showView('view-expired'); }
+        if (data.success) await enterSession(data.email);
+        else showView('view-expired');
       } catch { showView('view-expired'); }
+    }
+
+    // ─── OAuth Google / GitHub ──────────────────────────────────────────────────
+    // Config chargée une fois (client ID Google + disponibilité GitHub).
+    let _oauthCfg = null;
+    async function loadOAuthConfig() {
+      if (_oauthCfg) return _oauthCfg;
+      try { _oauthCfg = await (await fetch(`${API_BASE}/api/auth/config`)).json(); }
+      catch { _oauthCfg = { googleClientId: null, githubEnabled: false }; }
+      return _oauthCfg;
+    }
+    function hideOAuthSepIfEmpty(cfg) {
+      if (!cfg.googleClientId && !cfg.githubEnabled) {
+        const sep = document.querySelector('.oauth-sep'); if (sep) sep.style.display = 'none';
+      }
+    }
+    // GitHub : configurable indépendamment de la lib Google (appelé au chargement).
+    async function setupGitHub() {
+      const cfg = await loadOAuthConfig();
+      if (!cfg.githubEnabled) document.getElementById('github-btn').style.display = 'none';
+      hideOAuthSepIfEmpty(cfg);
+    }
+    // Google Identity Services : bouton rendu par GIS (libellé localisé auto).
+    // Déclenché par le hook officiel onGoogleLibraryLoad quand la lib est prête.
+    async function setupGoogle() {
+      const cfg = await loadOAuthConfig();
+      const el  = document.getElementById('google-btn');
+      if (cfg.googleClientId && window.google?.accounts?.id) {
+        google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onGoogleCredential });
+        google.accounts.id.renderButton(el, {
+          type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: 320,
+        });
+      } else if (el) {
+        el.style.display = 'none';
+      }
+      hideOAuthSepIfEmpty(cfg);
+    }
+    window.onGoogleLibraryLoad = setupGoogle;
+
+    async function onGoogleCredential(resp) {
+      hideAlerts('login-error', 'login-success');
+      try {
+        const res  = await fetch(`${API_BASE}/api/auth/google`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ idToken: resp.credential }),
+        });
+        const data = await res.json();
+        if (data.success) await enterSession(data.email);
+        else showAlert('login-error', data.error || t('manage.err_generic'));
+      } catch { showAlert('login-error', t('manage.err_conn')); }
+    }
+
+    // GitHub : redirection serveur (le secret ne quitte jamais le backend).
+    function loginWithGitHub() {
+      window.location.href = `${API_BASE}/api/auth/github`;
     }
 
     // ─── Magic link ───────────────────────────────────────────────────────────
@@ -793,6 +853,7 @@
     document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') requestMagicLink(); });
 
     init();
+    setupGitHub();
   </script>
 
 </body>

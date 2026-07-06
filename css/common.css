@@ -283,6 +283,24 @@ footer a:hover { text-decoration: underline; }
   white-space: pre-wrap; word-break: break-word; color: var(--text);
 }
 
+/* ─── Boutons OAuth (Google / GitHub) sur les écrans de connexion ───────────── */
+.btn-oauth {
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 100%; padding: 10px 14px;
+  border: 1px solid var(--border-md); border-radius: var(--radius);
+  background: var(--surface2); color: var(--text);
+  font-family: var(--sans); font-size: 0.86rem; font-weight: 500;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.btn-oauth:hover { border-color: var(--text-dim); }
+.btn-oauth svg { width: 18px; height: 18px; flex-shrink: 0; }
+.oauth-sep {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0.9rem 0; color: var(--text-dim);
+  font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.oauth-sep::before, .oauth-sep::after { content: ''; flex: 1; height: 1px; background: var(--border-md); }
+
 /* ─── Header commun (contrôles en haut à droite, toutes pages) ──────────────── */
 .topnav {
   position: fixed; top: 1.25rem; right: 1.5rem; z-index: 20;
