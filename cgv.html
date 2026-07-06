@@ -13,6 +13,7 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#d97757" />
   <link rel="stylesheet" href="/css/common.css" />
+  <script src="/i18n.js"></script>
   <style>
     header { max-width: 640px; }
     h1 { font-size: clamp(1.5rem, 4vw, 2rem); }
@@ -131,6 +132,9 @@
 </head>
 <body>
 
+  <button id="lang-btn" aria-label="Language / Langue"
+    style="position:fixed;top:1.25rem;right:4.6rem;z-index:11;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:5px 11px;font-size:0.75rem;font-weight:600;color:var(--text-muted);font-family:var(--sans);cursor:pointer;box-shadow:var(--shadow)">FR</button>
+
   <button class="theme-toggle" onclick="toggleTheme()" aria-label="Basculer le thème">
     <svg id="theme-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"></svg>
     <span id="theme-label">Thème</span>
@@ -148,6 +152,8 @@
     <p class="tagline">CGU / CGV applicables à l'utilisation du service DoomName et de son API publique.</p>
     <span class="update-date">Mise à jour : 14 juin 2026</span>
   </header>
+
+  <div data-en-only data-i18n="legal.notice" style="display:none;max-width:720px;margin:0 auto 1rem;padding:0.7rem 1rem;border:1px solid var(--border-md);border-radius:8px;background:var(--surface2);color:var(--text-muted);font-size:0.82rem;text-align:center">Courtesy translation — only the French version prevails.</div>
 
   <div class="content">
 

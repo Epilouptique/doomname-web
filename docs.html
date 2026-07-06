@@ -13,6 +13,7 @@
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#d97757" />
   <link rel="stylesheet" href="/css/common.css" />
+  <script src="/i18n.js"></script>
   <style>
     :root { --surface-code: #1a1a18; }
     [data-theme="dark"] { --surface-code: #0d0d0c; }
@@ -225,6 +226,9 @@
   </style>
 </head>
 <body>
+
+  <button id="lang-btn" aria-label="Language / Langue"
+    style="position:fixed;top:1.25rem;right:4.6rem;z-index:11;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:5px 11px;font-size:0.75rem;font-weight:600;color:var(--text-muted);font-family:var(--sans);cursor:pointer;box-shadow:var(--shadow)">FR</button>
 
   <button class="theme-toggle" onclick="toggleTheme()" aria-label="Thème">
     <svg id="theme-icon" viewBox="0 0 16 16" fill="none">
