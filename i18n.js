@@ -1,0 +1,129 @@
+/* i18n partagé DoomName (FR par défaut / EN). Ne pas traduire "DoomName"/"Dahu-Concept".
+   Usage : data-i18n="clé" (textContent), data-i18n-html="clé" (innerHTML),
+   data-i18n-ph="clé" (placeholder). window.t('clé') pour le JS. */
+(function () {
+  const DICT = {
+    fr: {
+      'nav.lang': 'FR',
+      // Accueil
+      'home.h1': 'Surveillance de <em>nom de domaine</em>',
+      'home.subtitle': 'Vérifiez la disponibilité et soyez alerté dès qu\'un domaine se libère',
+      'home.tag_check': 'Vérifier un domaine',
+      'home.check_btn': 'Surveiller',
+      'home.tag_alert': 'Recevoir une alerte',
+      'home.subscribe_btn': 'M\'alerter',
+      'home.watch_btn': 'Surveiller',
+      'home.subscribe_confirm': 'Alerte activée — vous serez notifié dès que ce domaine sera libre.',
+      'home.pill_hourly': 'Vérifié toutes les heures',
+      'home.pill_free': 'Alerte e-mail gratuite',
+      'home.pill_whois': 'WHOIS en temps réel',
+      'home.install': 'Installer l\'app',
+      'home.enable_notifs': 'Activer les notifications',
+      'home.manage_link': 'Gérer mes alertes →',
+      // Section SEO
+      'about.h2': 'Surveillez la disponibilité d\'un nom de domaine, gratuitement',
+      'about.p1': 'DoomName est un service gratuit qui surveille en continu la disponibilité des noms de domaine qui vous intéressent. Saisissez un domaine : nous interrogeons les serveurs WHOIS en temps réel pour savoir s\'il est libre, enregistré, ou en cours d\'expiration. S\'il est déjà pris, activez une alerte et nous vous préviendrons automatiquement, par e-mail et par notification, dès qu\'il se libère.',
+      'about.p2': 'De nombreux domaines expirent chaque jour sans être renouvelés. DoomName vérifie leur statut toutes les heures et suit leur cycle de vie complet — période de grâce, rédemption, suppression — pour vous alerter au bon moment. Le service est utilisable depuis le web comme depuis l\'application mobile Android, et une API publique permet aux développeurs d\'automatiser leurs surveillances.',
+      'about.h3': 'Pourquoi utiliser DoomName ?',
+      'about.li1': 'Alertes automatiques par e-mail et notification push dès qu\'un domaine devient disponible.',
+      'about.li2': 'Vérification WHOIS en temps réel et suivi horaire des domaines surveillés.',
+      'about.li3': 'Suivi du cycle d\'expiration : grâce, rédemption et suppression imminente.',
+      'about.li4': '100 % gratuit, sans publicité, avec une API pour les développeurs.',
+      // Résultats / messages JS
+      'res.available_title': '%{d} est disponible !',
+      'res.available_sub': 'Ce domaine peut être enregistré maintenant.',
+      'res.taken_title': '%{d} est déjà pris',
+      'res.taken_sub_expiry': 'Expiration : %{e}',
+      'res.taken_sub': 'Activez une alerte pour être notifié.',
+      'res.invalid_title': 'Domaine invalide',
+      'res.invalid_sub': 'Ex : exemple.com, monsite.fr',
+      'res.err_title': 'Erreur de connexion',
+      'res.err_sub': 'Le serveur est inaccessible.',
+      'intro.taken': '<strong>%{d}</strong> est actuellement pris. Entrez votre e-mail pour être alerté dès qu\'il sera disponible.',
+      'intro.available': '<strong>%{d}</strong> est disponible. Surveillez-le pour être prévenu s\'il est enregistré, puis à nouveau libéré.',
+      'msg.sub_error': 'Une erreur est survenue. Veuillez réessayer.',
+      'msg.conn_error': 'Erreur de connexion au serveur.',
+    },
+    en: {
+      'nav.lang': 'EN',
+      'home.h1': 'Domain name <em>monitoring</em>',
+      'home.subtitle': 'Check availability and get alerted as soon as a domain is released',
+      'home.tag_check': 'Check a domain',
+      'home.check_btn': 'Watch',
+      'home.tag_alert': 'Get an alert',
+      'home.subscribe_btn': 'Alert me',
+      'home.watch_btn': 'Watch',
+      'home.subscribe_confirm': 'Alert enabled — you will be notified as soon as this domain is free.',
+      'home.pill_hourly': 'Checked every hour',
+      'home.pill_free': 'Free email alerts',
+      'home.pill_whois': 'Real-time WHOIS',
+      'home.install': 'Install the app',
+      'home.enable_notifs': 'Enable notifications',
+      'home.manage_link': 'Manage my alerts →',
+      'about.h2': 'Monitor a domain name\'s availability, for free',
+      'about.p1': 'DoomName is a free service that continuously monitors the availability of the domain names you care about. Enter a domain: we query WHOIS servers in real time to know whether it is free, registered, or expiring. If it is taken, enable an alert and we will notify you automatically, by email and notification, as soon as it is released.',
+      'about.p2': 'Many domains expire every day without being renewed. DoomName checks their status every hour and follows their full life cycle — grace period, redemption, deletion — to alert you at the right time. It works from the web and the Android app, and a public API lets developers automate their own monitoring.',
+      'about.h3': 'Why use DoomName?',
+      'about.li1': 'Automatic email and push alerts as soon as a domain becomes available.',
+      'about.li2': 'Real-time WHOIS checks and hourly monitoring of watched domains.',
+      'about.li3': 'Expiration cycle tracking: grace, redemption and imminent deletion.',
+      'about.li4': '100% free, no ads, with an API for developers.',
+      'res.available_title': '%{d} is available!',
+      'res.available_sub': 'This domain can be registered now.',
+      'res.taken_title': '%{d} is already taken',
+      'res.taken_sub_expiry': 'Expires: %{e}',
+      'res.taken_sub': 'Enable an alert to be notified.',
+      'res.invalid_title': 'Invalid domain',
+      'res.invalid_sub': 'e.g. example.com, mysite.fr',
+      'res.err_title': 'Connection error',
+      'res.err_sub': 'The server is unreachable.',
+      'intro.taken': '<strong>%{d}</strong> is currently taken. Enter your email to be alerted as soon as it becomes available.',
+      'intro.available': '<strong>%{d}</strong> is available. Watch it to be notified if it gets registered, then released again.',
+      'msg.sub_error': 'Something went wrong. Please try again.',
+      'msg.conn_error': 'Connection error.',
+    },
+  };
+
+  function detect() {
+    const q = new URLSearchParams(location.search).get('lang');
+    if (q === 'fr' || q === 'en') { localStorage.setItem('dw-lang', q); return q; }
+    const saved = localStorage.getItem('dw-lang');
+    if (saved === 'fr' || saved === 'en') return saved;
+    return (navigator.language || 'fr').toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  }
+
+  let lang = detect();
+
+  function interp(str, params) {
+    return params ? str.replace(/%\{(\w+)\}/g, (_, k) => (params[k] != null ? params[k] : '')) : str;
+  }
+  function t(key, params) {
+    const d = DICT[lang] || DICT.fr;
+    return interp(d[key] != null ? d[key] : (DICT.fr[key] != null ? DICT.fr[key] : key), params);
+  }
+
+  function apply(root) {
+    (root || document).querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
+    (root || document).querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n-html')); });
+    (root || document).querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    document.documentElement.setAttribute('lang', lang);
+  }
+
+  function setLang(l) {
+    lang = (l === 'en') ? 'en' : 'fr';
+    localStorage.setItem('dw-lang', lang);
+    apply();
+    const badge = document.getElementById('lang-btn');
+    if (badge) badge.textContent = lang.toUpperCase();
+    document.dispatchEvent(new CustomEvent('langchange', { detail: lang }));
+  }
+
+  // Expose l'API + initialise au chargement.
+  window.i18n = { t, setLang, apply, get lang() { return lang; } };
+  window.t = t;
+  document.addEventListener('DOMContentLoaded', () => {
+    const badge = document.getElementById('lang-btn');
+    if (badge) { badge.textContent = lang.toUpperCase(); badge.addEventListener('click', () => setLang(lang === 'fr' ? 'en' : 'fr')); }
+    apply();
+  });
+})();

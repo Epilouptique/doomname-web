@@ -33,6 +33,10 @@
   <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
   <link rel="stylesheet" href="/css/common.css" />
+  <link rel="alternate" hreflang="fr" href="https://doomname.com/" />
+  <link rel="alternate" hreflang="en" href="https://doomname.com/?lang=en" />
+  <link rel="alternate" hreflang="x-default" href="https://doomname.com/" />
+  <script src="/i18n.js"></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -148,6 +152,9 @@
 </head>
 <body>
 
+  <button id="lang-btn" aria-label="Language / Langue"
+    style="position:fixed;top:1.25rem;right:4.6rem;z-index:11;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:5px 11px;font-size:0.75rem;font-weight:600;color:var(--text-muted);font-family:var(--sans);cursor:pointer;box-shadow:var(--shadow)">FR</button>
+
   <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" aria-label="Basculer le thème">
     <svg id="theme-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/>
@@ -163,18 +170,18 @@
       </div>
       <span class="logo-text">DoomName</span>
     </div>
-    <h1>Surveillance de <em>nom de domaine</em></h1>
-    <p class="subtitle">Vérifiez la disponibilité et soyez alerté dès qu'un domaine se libère</p>
+    <h1 data-i18n-html="home.h1">Surveillance de <em>nom de domaine</em></h1>
+    <p class="subtitle" data-i18n="home.subtitle">Vérifiez la disponibilité et soyez alerté dès qu'un domaine se libère</p>
   </header>
 
   <div class="card">
 
     <div class="card-section">
-      <span class="section-tag">Vérifier un domaine</span>
+      <span class="section-tag" data-i18n="home.tag_check">Vérifier un domaine</span>
       <div class="input-row">
         <input type="text" id="domain-input" placeholder="exemple.com"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-        <button class="btn btn-primary" id="check-btn" onclick="checkDomain()">Surveiller</button>
+        <button class="btn btn-primary" id="check-btn" onclick="checkDomain()" data-i18n="home.check_btn">Surveiller</button>
       </div>
       <div class="suggestions-row" id="suggestions-row"></div>
       <div class="result-box" id="result-box">
@@ -187,20 +194,20 @@
     </div>
 
     <div class="card-section subscribe-section" id="subscribe-section">
-      <span class="section-tag">Recevoir une alerte</span>
+      <span class="section-tag" data-i18n="home.tag_alert">Recevoir une alerte</span>
       <p class="subscribe-intro" id="subscribe-intro">
         <strong id="domain-label"></strong> est actuellement pris.
         Entrez votre e-mail pour être alerté dès qu'il sera disponible.
       </p>
       <div class="input-row">
         <input type="email" id="email-input" placeholder="vous@exemple.com" />
-        <button class="btn btn-success" id="subscribe-btn" onclick="subscribe()">M'alerter</button>
+        <button class="btn btn-success" id="subscribe-btn" onclick="subscribe()" data-i18n="home.subscribe_btn">M'alerter</button>
       </div>
       <div class="subscribe-confirm" id="subscribe-confirm">
         <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
           <path d="M2.5 7.5l3.5 3.5 6.5-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        Alerte activée — vous serez notifié dès que ce domaine sera libre.
+        <span data-i18n="home.subscribe_confirm">Alerte activée — vous serez notifié dès que ce domaine sera libre.</span>
       </div>
     </div>
 
@@ -209,40 +216,38 @@
   <div class="info-bar">
     <span class="info-pill">
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.2"/><path d="M6 3v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      Vérifié toutes les heures
+      <span data-i18n="home.pill_hourly">Vérifié toutes les heures</span>
     </span>
     <span class="info-pill">
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="1" y="2.5" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 2.5V2a1.5 1.5 0 0 1 4 0v.5" stroke="currentColor" stroke-width="1.2"/></svg>
-      Alerte e-mail gratuite
+      <span data-i18n="home.pill_free">Alerte e-mail gratuite</span>
     </span>
     <span class="info-pill">
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 9l3-5 3 4 2-2.5 2 3.5H1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-      WHOIS en temps réel
+      <span data-i18n="home.pill_whois">WHOIS en temps réel</span>
     </span>
   </div>
 
   <section class="about">
-    <h2>Surveillez la disponibilité d'un nom de domaine, gratuitement</h2>
-    <p>
+    <h2 data-i18n="about.h2">Surveillez la disponibilité d'un nom de domaine, gratuitement</h2>
+    <p data-i18n="about.p1">
       DoomName est un service gratuit qui surveille en continu la disponibilité des noms de domaine
-      qui vous intéressent. Saisissez un domaine (par exemple <strong>exemple.com</strong>) : nous
-      interrogeons les serveurs WHOIS en temps réel pour savoir s'il est libre, enregistré, ou en
-      cours d'expiration. S'il est déjà pris, activez une alerte et nous vous préviendrons
-      automatiquement, par e-mail et par notification, dès qu'il se libère.
+      qui vous intéressent. Saisissez un domaine : nous interrogeons les serveurs WHOIS en temps réel
+      pour savoir s'il est libre, enregistré, ou en cours d'expiration. S'il est déjà pris, activez une
+      alerte et nous vous préviendrons automatiquement, par e-mail et par notification, dès qu'il se libère.
     </p>
-    <p>
+    <p data-i18n="about.p2">
       De nombreux domaines expirent chaque jour sans être renouvelés. DoomName vérifie leur statut
       toutes les heures et suit leur cycle de vie complet — période de grâce, rédemption, suppression —
-      pour vous alerter au bon moment, avant qu'un concurrent ou un revendeur ne les récupère.
-      Le service est utilisable depuis le web comme depuis l'application mobile Android, et une API
-      publique permet aux développeurs d'automatiser leurs propres surveillances.
+      pour vous alerter au bon moment. Le service est utilisable depuis le web comme depuis l'application
+      mobile Android, et une API publique permet aux développeurs d'automatiser leurs surveillances.
     </p>
-    <h3>Pourquoi utiliser DoomName ?</h3>
+    <h3 data-i18n="about.h3">Pourquoi utiliser DoomName ?</h3>
     <ul>
-      <li><strong>Alertes automatiques</strong> par e-mail et notification push dès qu'un domaine devient disponible.</li>
-      <li><strong>Vérification WHOIS en temps réel</strong> et suivi horaire des domaines surveillés.</li>
-      <li><strong>Suivi du cycle d'expiration</strong> : grâce, rédemption et suppression imminente.</li>
-      <li><strong>100 % gratuit</strong>, sans publicité, avec une API pour les développeurs.</li>
+      <li data-i18n="about.li1">Alertes automatiques par e-mail et notification push dès qu'un domaine devient disponible.</li>
+      <li data-i18n="about.li2">Vérification WHOIS en temps réel et suivi horaire des domaines surveillés.</li>
+      <li data-i18n="about.li3">Suivi du cycle d'expiration : grâce, rédemption et suppression imminente.</li>
+      <li data-i18n="about.li4">100 % gratuit, sans publicité, avec une API pour les développeurs.</li>
     </ul>
   </section>
 
@@ -257,13 +262,13 @@
     </div>
     <button id="install-btn" onclick="installPWA()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M1 9.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Installer l'app
+      <span data-i18n="home.install">Installer l'app</span>
     </button>
     <button id="notif-btn" onclick="enableNotifications()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.2a2.1 2.1 0 0 0-2.1 2.1c0 2.45-1 3.15-1 3.85 0 .39.31.7.7.7h4.8c.39 0 .7-.31.7-.7 0-.7-1-1.4-1-3.85A2.1 2.1 0 0 0 6.5 1.2ZM5.5 10a1 1 0 0 0 2 0" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      Activer les notifications
+      <span data-i18n="home.enable_notifs">Activer les notifications</span>
     </button>
-    <a href="/manage.html" style="font-size:0.84rem;color:var(--accent);text-decoration:none;font-family:var(--sans);font-weight:500;">
+    <a href="/manage.html" data-i18n="home.manage_link" style="font-size:0.84rem;color:var(--accent);text-decoration:none;font-family:var(--sans);font-weight:500;">
       Gérer mes alertes →
     </a>
   </div>
@@ -280,10 +285,15 @@
 
     // TODO: fiche Play Store pas encore publiée — mettre à jour l'URL le moment venu.
     const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=fr.dahuconcept.doomname';
-    (function initPlayBadge() {
+    function updatePlayBadge() {
       const link = document.getElementById('play-badge-link');
+      const img  = document.getElementById('play-badge-img');
       if (link) link.href = PLAY_STORE_URL;
-    })();
+      const l = (window.i18n ? window.i18n.lang : 'fr');
+      if (img) img.src = `https://play.google.com/intl/en_us/badges/static/images/badges/${l === 'en' ? 'en' : 'fr'}_badge_web_generic.png`;
+    }
+    updatePlayBadge();
+    document.addEventListener('langchange', updatePlayBadge);
 
     // ─── Thème ────────────────────────────────────────────────────────────────
     const DARK_HOUR_START = 20;
@@ -334,7 +344,7 @@
 
     async function checkDomain() {
       const domain = normalizeDomain(document.getElementById('domain-input').value);
-      if (!isValidDomain(domain)) { showResult('error', 'Domaine invalide', 'Ex : exemple.com, monsite.fr'); return; }
+      if (!isValidDomain(domain)) { showResult('error', t('res.invalid_title'), t('res.invalid_sub')); return; }
 
       currentDomain = domain;
       const btn = document.getElementById('check-btn');
@@ -346,22 +356,20 @@
         const res  = await fetch(`${API_BASE}/api/check?domain=${encodeURIComponent(domain)}`);
         const data = await res.json();
         if (data.available) {
-          showResult('available', `${domain} est disponible !`, 'Ce domaine peut être enregistré maintenant.');
+          showResult('available', t('res.available_title', { d: domain }), t('res.available_sub'));
           // Parité "Surveiller" : on peut l'ajouter même s'il est disponible.
-          document.getElementById('subscribe-intro').innerHTML =
-            `<strong>${domain}</strong> est disponible. Surveillez-le pour être prévenu s'il est enregistré, puis à nouveau libéré.`;
-          document.getElementById('subscribe-btn').textContent = 'Surveiller';
+          document.getElementById('subscribe-intro').innerHTML = t('intro.available', { d: domain });
+          document.getElementById('subscribe-btn').textContent = t('home.watch_btn');
           document.getElementById('subscribe-section').style.display = 'block';
         } else {
-          showResult('taken', `${domain} est déjà pris`, data.expiry ? `Expiration : ${data.expiry}` : 'Activez une alerte pour être notifié.');
-          document.getElementById('subscribe-intro').innerHTML =
-            `<strong>${domain}</strong> est actuellement pris. Entrez votre e-mail pour être alerté dès qu'il sera disponible.`;
-          document.getElementById('subscribe-btn').textContent = "M'alerter";
+          showResult('taken', t('res.taken_title', { d: domain }), data.expiry ? t('res.taken_sub_expiry', { e: data.expiry }) : t('res.taken_sub'));
+          document.getElementById('subscribe-intro').innerHTML = t('intro.taken', { d: domain });
+          document.getElementById('subscribe-btn').textContent = t('home.subscribe_btn');
           document.getElementById('subscribe-section').style.display = 'block';
         }
-      } catch { showResult('error', 'Erreur de connexion', 'Le serveur est inaccessible.'); }
+      } catch { showResult('error', t('res.err_title'), t('res.err_sub')); }
 
-      btn.innerHTML = 'Vérifier'; btn.disabled = false;
+      btn.innerHTML = t('home.check_btn'); btn.disabled = false;
     }
 
     function showResult(type, title, sub) {
@@ -386,17 +394,17 @@
       try {
         const res = await fetch(`${API_BASE}/api/subscribe`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ domain: currentDomain, email })
+          body: JSON.stringify({ domain: currentDomain, email, lang: (window.i18n ? window.i18n.lang : 'fr') })
         });
         if (res.ok) {
           localStorage.setItem('dw-email', email);
           registerWebPushToken(email); // lie le token push web à ce compte si dispo
           document.getElementById('subscribe-confirm').style.display = 'flex';
           document.getElementById('email-input').value = '';
-        } else { alert('Une erreur est survenue. Veuillez réessayer.'); }
-      } catch { alert('Erreur de connexion au serveur.'); }
+        } else { alert(t('msg.sub_error')); }
+      } catch { alert(t('msg.conn_error')); }
 
-      btn.innerHTML = "M'alerter"; btn.disabled = false;
+      btn.innerHTML = t('home.subscribe_btn'); btn.disabled = false;
     }
 
     document.getElementById('domain-input').addEventListener('keydown', e => { if (e.key === 'Enter') checkDomain(); });

@@ -931,6 +931,19 @@ app.patch('/api/manage/settings', async (req, res) => {
   }
 });
 
+// Met à jour la langue préférée (colonne lang) de tous les abonnements du compte.
+app.post('/api/manage/lang', async (req, res) => {
+  const { email, lang } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'E-mail requis' });
+  try {
+    await db.query('UPDATE subscriptions SET lang = $2 WHERE email = $1', [email.toLowerCase(), normLang(lang)]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Erreur maj lang:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ─── Enregistrement d'un token push (app mobile) ───────────────────────────────
 app.post('/api/manage/push-token', async (req, res) => {
   const { email, token, platform } = req.body || {};
