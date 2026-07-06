@@ -307,6 +307,7 @@ footer a:hover { text-decoration: underline; }
   transition: max-width 0.48s ease, opacity 0.48s ease, margin-left 0.48s ease;
 }
 @media (hover: hover) { .topnav .icon-expand:hover .lbl { max-width: 110px; opacity: 1; margin-left: 5px; } }
+@media (max-width: 768px) { .topnav { position: absolute; } }
 @media (max-width: 520px) {
   .topnav { top: 0.9rem; right: 1rem; gap: 6px; }
   header { margin-top: 2rem; }
