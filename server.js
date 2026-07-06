@@ -148,8 +148,6 @@ async function createSession(res, email) {
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SITE_URL = 'https://doomname.com';
-// URL publique du backend (redirections OAuth). Sur Railway = domaine du service.
-const PUBLIC_URL = process.env.APP_URL || SITE_URL;
 // Expéditeur unique et cohérent pour TOUS les envois (délivrabilité).
 const EMAIL_FROM = process.env.EMAIL_FROM || 'DoomName <noreply@alert.doomname.com>';
 
@@ -812,12 +810,19 @@ app.post('/api/auth/google', async (req, res) => {
 //   ?platform=app  → à la fin, redirige vers un deep link doomname://auth?token=…
 //                    (jeton magic-link éphémère consommé par /api/auth/verify).
 //   sinon (web)    → createSession + redirige vers /manage.html.
+// redirect_uri dérivé du host de la requête : le cookie d'état et le callback
+// vivent ainsi sur le MÊME domaine (web = www.doomname.com, app = même host).
+// → une seule URL de callback à enregistrer côté GitHub.
+function githubCallbackUri(req) {
+  return `https://${req.get('host')}/api/auth/github/callback`;
+}
+
 app.get('/api/auth/github', (req, res) => {
   if (!GITHUB_CLIENT_ID) return res.status(503).send('GitHub OAuth non configuré');
   const platform  = req.query.platform === 'app' ? 'app' : 'web';
   const rnd        = crypto.randomBytes(16).toString('hex');
   res.cookie('gh_oauth_state', rnd, { httpOnly: true, secure: true, sameSite: 'lax', maxAge: 10 * 60 * 1000, path: '/' });
-  const redirectUri = `${PUBLIC_URL}/api/auth/github/callback`;
+  const redirectUri = githubCallbackUri(req);
   const url = 'https://github.com/login/oauth/authorize'
     + `?client_id=${encodeURIComponent(GITHUB_CLIENT_ID)}`
     + '&scope=user:email'
@@ -840,7 +845,7 @@ app.get('/api/auth/github/callback', async (req, res) => {
         client_id: GITHUB_CLIENT_ID,
         client_secret: GITHUB_CLIENT_SECRET,
         code,
-        redirect_uri: `${PUBLIC_URL}/api/auth/github/callback`,
+        redirect_uri: githubCallbackUri(req),
       }),
     });
     const tokenData   = await tokenRes.json();
