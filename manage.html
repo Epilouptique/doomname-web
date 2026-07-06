@@ -224,13 +224,13 @@
           <button class="filter-btn"        id="filter-inactive"  onclick="setFilter('inactive')"  data-i18n="manage.f_inactive">Désactivés</button>
           <button class="filter-btn"        id="filter-available" onclick="setFilter('available')" data-i18n="manage.f_available">Disponible</button>
           <span style="flex:1"></span>
-          <button class="btn-icon" id="search-toggle-btn" onclick="toggleSearch()" title="Rechercher">
+          <button class="btn-icon" id="search-toggle-btn" onclick="toggleSearch()" data-i18n-title="manage.search" title="Rechercher">
             <svg viewBox="0 0 16 16" fill="none">
               <circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.3"/>
               <path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
             </svg>
           </button>
-          <button class="btn-icon" id="add-toggle-btn" onclick="toggleAddForm()" title="Ajouter un domaine">
+          <button class="btn-icon" id="add-toggle-btn" onclick="toggleAddForm()" data-i18n-title="manage.add_domain" title="Ajouter un domaine">
             <svg viewBox="0 0 16 16" fill="none">
               <path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
             </svg>
@@ -264,11 +264,11 @@
         </p>
 
         <div class="pager" id="pager-top" style="display:none">
-          <button class="btn-icon" onclick="goPage(-1)" title="Page précédente">
+          <button class="btn-icon" onclick="goPage(-1)" data-i18n-title="manage.tt_prev" title="Page précédente">
             <svg viewBox="0 0 16 16" fill="none"><path d="M10 3.5L5.5 8l4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <span class="pager-label" id="pager-label-top"></span>
-          <button class="btn-icon" onclick="goPage(1)" title="Page suivante">
+          <button class="btn-icon" onclick="goPage(1)" data-i18n-title="manage.tt_next" title="Page suivante">
             <svg viewBox="0 0 16 16" fill="none"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
@@ -278,11 +278,11 @@
         </div>
 
         <div class="pager" id="pager-bottom" style="display:none">
-          <button class="btn-icon" onclick="goPage(-1)" title="Page précédente">
+          <button class="btn-icon" onclick="goPage(-1)" data-i18n-title="manage.tt_prev" title="Page précédente">
             <svg viewBox="0 0 16 16" fill="none"><path d="M10 3.5L5.5 8l4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <span class="pager-label" id="pager-label-bottom"></span>
-          <button class="btn-icon" onclick="goPage(1)" title="Page suivante">
+          <button class="btn-icon" onclick="goPage(1)" data-i18n-title="manage.tt_next" title="Page suivante">
             <svg viewBox="0 0 16 16" fill="none"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
@@ -644,19 +644,19 @@
             <span class="domain-meta">${t('manage.added_on')} ${formatDate(sub.created_at)}</span>
           </div>
           <div class="domain-actions">
-            <button class="btn-icon" onclick="showWhois('${sub.domain}')" title="Voir le WHOIS complet">
+            <button class="btn-icon" onclick="showWhois('${sub.domain}')" title="${t('manage.tt_whois')}">
               <svg viewBox="0 0 16 16" fill="none">
                 <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"/>
                 <path d="M8 7.2v4.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
                 <circle cx="8" cy="4.9" r="0.9" fill="currentColor"/>
               </svg>
             </button>
-            <label class="switch" title="${sub.active ? 'Désactiver' : 'Réactiver'}">
+            <label class="switch" title="${sub.active ? t('manage.tt_disable') : t('manage.tt_reactivate')}">
               <input type="checkbox" ${sub.active ? 'checked' : ''} onchange="toggleSubscription(${sub.id}, this)" />
               <div class="switch-track"></div>
               <div class="switch-thumb"></div>
             </label>
-            <button class="btn-delete" onclick="deleteSubscription(${sub.id})" title="Supprimer">
+            <button class="btn-delete" onclick="deleteSubscription(${sub.id})" title="${t('manage.tt_delete')}">
               <svg viewBox="0 0 14 14" fill="none">
                 <path d="M2 3.5h10M5.5 3.5V2.5a1 1 0 0 1 1-1h1a1 1 0 0 1 1 1v1M6 6.5v3M8 6.5v3M3 3.5l.7 7.2a1 1 0 0 0 1 .8h4.6a1 1 0 0 0 1-.8L11 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>

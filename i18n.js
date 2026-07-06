@@ -20,6 +20,15 @@
       'home.install': 'Installer l\'app',
       'home.enable_notifs': 'Activer les notifications',
       'home.manage_link': 'Gérer mes alertes →',
+      'header.login': 'Se connecter',
+      'header.download': 'Télécharger',
+      'hero.h1': 'Surveillez la <em>disponibilité</em> de vos noms de domaine',
+      'col.need_h2': 'Le besoin',
+      'col.need_p': 'Le domaine parfait est déjà pris ? La plupart des domaines expirés ne sont jamais renouvelés — encore faut-il être là au bon moment.',
+      'col.sol_h2': 'La solution',
+      'col.sol_p': 'DoomName surveille pour vous, 24h/24. Email + notification push dès la libération, avec double vérification anti-faux-positifs.',
+      'col.free_h2': 'Libre et pratique',
+      'col.free_p': 'Gratuit et open-source. Aucune donnée revendue. <a href="/docs.html">API REST &amp; webhooks</a> pour les développeurs.',
       // Section SEO
       'about.h2': 'Surveillez la disponibilité d\'un nom de domaine, gratuitement',
       'about.p1': 'DoomName est un service gratuit qui surveille en continu la disponibilité des noms de domaine qui vous intéressent. Saisissez un domaine : nous interrogeons les serveurs WHOIS en temps réel pour savoir s\'il est libre, enregistré, ou en cours d\'expiration. S\'il est déjà pris, activez une alerte et nous vous préviendrons automatiquement, par e-mail et par notification, dès qu\'il se libère.',
@@ -93,6 +102,13 @@
       // Pages docs / légales
       'legal.notice': 'Traduction de courtoisie — seule la version française fait foi.',
       'legal.back': '← Retour à l\'accueil',
+      'manage.tt_whois': 'Voir le WHOIS complet',
+      'manage.tt_disable': 'Désactiver',
+      'manage.tt_reactivate': 'Réactiver',
+      'manage.tt_delete': 'Supprimer',
+      'manage.tt_prev': 'Page précédente',
+      'manage.tt_next': 'Page suivante',
+      'manage.tt_close': 'Fermer',
       'manage.add_success': '✓ %{d} ajouté à votre surveillance.',
       'manage.add_available': '%{d} est déjà disponible !',
       'manage.register_now': 'L\'enregistrer maintenant →',
@@ -114,6 +130,15 @@
       'home.install': 'Install the app',
       'home.enable_notifs': 'Enable notifications',
       'home.manage_link': 'Manage my alerts →',
+      'header.login': 'Log in',
+      'header.download': 'Download',
+      'hero.h1': 'Monitor domain name <em>availability</em>',
+      'col.need_h2': 'The need',
+      'col.need_p': 'The perfect domain is already taken? Most expired domains are never renewed — you just need to be there at the right moment.',
+      'col.sol_h2': 'The solution',
+      'col.sol_p': 'DoomName watches for you, 24/7. Email + push notification the moment it is released, with double-check anti-false-positives.',
+      'col.free_h2': 'Free &amp; practical',
+      'col.free_p': 'Free and open-source. No data resold. <a href="/docs.html">REST API &amp; webhooks</a> for developers.',
       'about.h2': 'Monitor a domain name\'s availability, for free',
       'about.p1': 'DoomName is a free service that continuously monitors the availability of the domain names you care about. Enter a domain: we query WHOIS servers in real time to know whether it is free, registered, or expiring. If it is taken, enable an alert and we will notify you automatically, by email and notification, as soon as it is released.',
       'about.p2': 'Many domains expire every day without being renewed. DoomName checks their status every hour and follows their full life cycle — grace period, redemption, deletion — to alert you at the right time. It works from the web and the Android app, and a public API lets developers automate their own monitoring.',
@@ -185,6 +210,13 @@
       // Docs / legal pages
       'legal.notice': 'Courtesy translation — only the French version prevails.',
       'legal.back': '← Back to home',
+      'manage.tt_whois': 'View full WHOIS',
+      'manage.tt_disable': 'Disable',
+      'manage.tt_reactivate': 'Re-enable',
+      'manage.tt_delete': 'Delete',
+      'manage.tt_prev': 'Previous page',
+      'manage.tt_next': 'Next page',
+      'manage.tt_close': 'Close',
       'manage.add_success': '✓ %{d} added to your watches.',
       'manage.add_available': '%{d} is already available!',
       'manage.register_now': 'Register it now →',
@@ -214,6 +246,7 @@
     (root || document).querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.getAttribute('data-i18n')); });
     (root || document).querySelectorAll('[data-i18n-html]').forEach(el => { el.innerHTML = t(el.getAttribute('data-i18n-html')); });
     (root || document).querySelectorAll('[data-i18n-ph]').forEach(el => { el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    (root || document).querySelectorAll('[data-i18n-title]').forEach(el => { el.setAttribute('title', t(el.getAttribute('data-i18n-title'))); });
     // Éléments affichés uniquement en anglais (ex. mention de traduction légale).
     (root || document).querySelectorAll('[data-en-only]').forEach(el => { el.style.display = (lang === 'en') ? '' : 'none'; });
     document.documentElement.setAttribute('lang', lang);
