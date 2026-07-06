@@ -1,2 +1,6 @@
 node_modules/
 .env
+# Fichiers Claude / instructions agent (gardés en local, non publiés)
+.claude/
+CLAUDE.md
+AGENTS.md

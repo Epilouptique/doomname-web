@@ -37,6 +37,7 @@
   <link rel="alternate" hreflang="en" href="https://doomname.com/?lang=en" />
   <link rel="alternate" hreflang="x-default" href="https://doomname.com/" />
   <script src="/i18n.js"></script>
+  <script src="/nav.js"></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -165,15 +166,20 @@
 </head>
 <body>
 
-  <button id="lang-btn" aria-label="Language / Langue"
-    style="position:fixed;top:1.25rem;right:4.6rem;z-index:11;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:5px 11px;font-size:0.75rem;font-weight:600;color:var(--text-muted);font-family:var(--sans);cursor:pointer;box-shadow:var(--shadow)">FR</button>
-
-  <button class="theme-toggle" onclick="toggleTheme()" id="theme-btn" aria-label="Basculer le thème">
-    <svg id="theme-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/>
-      <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
-    </svg>
-  </button>
+  <nav class="topnav">
+    <a id="nav-login" class="btn-login" href="/manage.html" data-i18n="header.login">Se connecter</a>
+    <button id="nav-download" class="topnav-btn icon-expand" aria-label="Télécharger">
+      <svg viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M1 9.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="lbl" data-i18n="header.download">Télécharger</span>
+    </button>
+    <button id="lang-btn" class="topnav-btn" aria-label="Language / Langue">FR</button>
+    <button class="topnav-btn" onclick="toggleTheme()" id="theme-btn" aria-label="Basculer le thème">
+      <svg id="theme-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </nav>
 
   <header>
     <div class="logo">
@@ -256,26 +262,19 @@
     </section>
   </section>
 
-  <div style="text-align:center;margin-top:1.25rem">
+  <div style="text-align:center">
     <!-- Badge officiel Google Play (image FR/EN selon la langue active) -->
-    <div style="margin-bottom:0.75rem">
+    <div>
       <a id="play-badge-link" href="#" target="_blank" rel="noopener" aria-label="Disponible sur Google Play">
         <img id="play-badge-img" alt="Disponible sur Google Play"
              src="https://play.google.com/intl/en_us/badges/static/images/badges/fr_badge_web_generic.png"
-             style="height:56px" />
+             style="height:66px" />
       </a>
     </div>
-    <button id="install-btn" onclick="installPWA()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M1 9.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span data-i18n="home.install">Installer l'app</span>
-    </button>
-    <button id="notif-btn" onclick="enableNotifications()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-bottom:0.75rem;box-shadow:var(--shadow)">
+    <button id="notif-btn" onclick="enableNotifications()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-top:0.75rem;box-shadow:var(--shadow)">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.2a2.1 2.1 0 0 0-2.1 2.1c0 2.45-1 3.15-1 3.85 0 .39.31.7.7.7h4.8c.39 0 .7-.31.7-.7 0-.7-1-1.4-1-3.85A2.1 2.1 0 0 0 6.5 1.2ZM5.5 10a1 1 0 0 0 2 0" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span data-i18n="home.enable_notifs">Activer les notifications</span>
     </button>
-    <a href="/manage.html" data-i18n="home.manage_link" style="font-size:0.84rem;color:var(--accent);text-decoration:none;font-family:var(--sans);font-weight:500;">
-      Gérer mes alertes →
-    </a>
   </div>
 
   <footer>
@@ -537,22 +536,7 @@
     // Lance la PWA après le chargement
     window.addEventListener('load', initPWA);
 
-    // Bouton d'installation PWA
-    let deferredPrompt = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      document.getElementById('install-btn').style.display = 'inline-flex';
-    });
-
-    function installPWA() {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(() => {
-        deferredPrompt = null;
-        document.getElementById('install-btn').style.display = 'none';
-      });
-    }
+    // (L'installation PWA "Télécharger" est gérée par le header commun nav.js.)
   </script>
 
 </body>

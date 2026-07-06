@@ -76,7 +76,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 3rem 1.5rem 5rem;
+  padding: 3rem 1.5rem 2rem;
   transition: background 0.2s, color 0.2s;
 }
 
@@ -282,3 +282,29 @@ footer a:hover { text-decoration: underline; }
   font-family: var(--mono); font-size: 0.78rem; line-height: 1.6;
   white-space: pre-wrap; word-break: break-word; color: var(--text);
 }
+
+/* ─── Header commun (contrôles en haut à droite, toutes pages) ──────────────── */
+.topnav {
+  position: fixed; top: 1.25rem; right: 1.5rem; z-index: 20;
+  display: flex; align-items: center; gap: 9px;
+}
+.topnav .btn-login {
+  font-size: 0.8rem; font-weight: 500; color: #fff; background: var(--accent);
+  border: none; border-radius: 20px; padding: 7px 15px; text-decoration: none;
+  cursor: pointer; transition: background 0.15s; white-space: nowrap;
+}
+.topnav .btn-login:hover { background: var(--accent-hover); }
+.topnav-btn {
+  display: flex; align-items: center; height: 34px; padding: 0 10px;
+  background: var(--surface); border: 1px solid var(--border-md); border-radius: 20px;
+  color: var(--text-muted); font-family: var(--sans); font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; box-shadow: var(--shadow); transition: color 0.15s;
+}
+.topnav-btn:hover { color: var(--text); }
+.topnav-btn svg { width: 15px; height: 15px; }
+.topnav .icon-expand .lbl {
+  max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
+  transition: max-width 0.28s ease, opacity 0.2s ease, margin-left 0.28s ease;
+}
+@media (hover: hover) { .topnav .icon-expand:hover .lbl { max-width: 110px; opacity: 1; margin-left: 5px; } }
+@media (max-width: 520px) { .topnav { top: 0.9rem; right: 1rem; gap: 6px; } .topnav .btn-login { padding: 6px 11px; } }
