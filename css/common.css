@@ -304,7 +304,11 @@ footer a:hover { text-decoration: underline; }
 .topnav-btn svg { width: 15px; height: 15px; }
 .topnav .icon-expand .lbl {
   max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap;
-  transition: max-width 0.28s ease, opacity 0.2s ease, margin-left 0.28s ease;
+  transition: max-width 0.48s ease, opacity 0.48s ease, margin-left 0.48s ease;
 }
 @media (hover: hover) { .topnav .icon-expand:hover .lbl { max-width: 110px; opacity: 1; margin-left: 5px; } }
-@media (max-width: 520px) { .topnav { top: 0.9rem; right: 1rem; gap: 6px; } .topnav .btn-login { padding: 6px 11px; } }
+@media (max-width: 520px) {
+  .topnav { top: 0.9rem; right: 1rem; gap: 6px; }
+  .topnav .btn-login { padding: 10px 15px; }
+  header { margin-top: 2rem; }
+}

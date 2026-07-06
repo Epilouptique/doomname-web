@@ -161,7 +161,15 @@
     .col p { font-size: 0.85rem; color: var(--text-muted); line-height: 1.55; }
     .col p a { color: var(--accent); text-decoration: none; }
     .col p a:hover { text-decoration: underline; }
-    @media (max-width: 768px) { .cols { grid-template-columns: 1fr; gap: 2rem; margin: 2.5rem auto; } }
+    @media (max-width: 768px) {
+      .cols { grid-template-columns: 1fr; gap: 2rem; margin: 2.5rem auto; }
+      /* Sur mobile : badge Google Play remonté au-dessus des 3 blocs
+         (mais toujours sous .info-bar). body est un flex column. */
+      .info-bar { order: 1; }
+      .download { order: 2; margin-bottom: 0.5rem; }
+      .cols { order: 3; }
+      footer { order: 4; }
+    }
   </style>
 </head>
 <body>
@@ -262,7 +270,7 @@
     </section>
   </section>
 
-  <div style="text-align:center">
+  <div class="download" style="text-align:center">
     <!-- Badge officiel Google Play (image FR/EN selon la langue active) -->
     <div>
       <a id="play-badge-link" href="#" target="_blank" rel="noopener" aria-label="Disponible sur Google Play">
