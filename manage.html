@@ -852,6 +852,11 @@
 
     document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') requestMagicLink(); });
 
+    // i18n.js retraduit déjà les éléments statiques (data-i18n) au changement de
+    // langue ; on re-rend la liste des domaines pour que les contenus générés en
+    // JS (badges de statut, « Ajouté le », infobulles) suivent aussi.
+    document.addEventListener('langchange', () => { if (allSubs.length) renderSubscriptions(); });
+
     init();
     setupGitHub();
   </script>

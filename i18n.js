@@ -29,7 +29,7 @@
       'col.sol_h2': 'La solution',
       'col.sol_p': 'DoomName surveille pour vous, 24h/24. Email + notification push dès la libération, avec double vérification anti-faux-positifs.',
       'col.free_h2': 'Libre et pratique',
-      'col.free_p': 'Gratuit et open-source. Aucune donnée revendue. <a href="/docs.html">API REST &amp; webhooks</a> pour les développeurs.',
+      'col.free_p': 'Gratuit et open-source. Aucune donnée revendue. <a href="/developer.html">API REST &amp; webhooks</a> pour les développeurs.',
       // Section SEO
       'about.h2': 'Surveillez la disponibilité d\'un nom de domaine, gratuitement',
       'about.p1': 'DoomName est un service gratuit qui surveille en continu la disponibilité des noms de domaine qui vous intéressent. Saisissez un domaine : nous interrogeons les serveurs WHOIS en temps réel pour savoir s\'il est libre, enregistré, ou en cours d\'expiration. S\'il est déjà pris, activez une alerte et nous vous préviendrons automatiquement, par e-mail et par notification, dès qu\'il se libère.',
@@ -142,7 +142,7 @@
       'col.sol_h2': 'The solution',
       'col.sol_p': 'DoomName watches for you, 24/7. Email + push notification the moment it is released, with double-check anti-false-positives.',
       'col.free_h2': 'Free &amp; practical',
-      'col.free_p': 'Free and open-source. No data resold. <a href="/docs.html">REST API &amp; webhooks</a> for developers.',
+      'col.free_p': 'Free and open-source. No data resold. <a href="/developer.html">REST API &amp; webhooks</a> for developers.',
       'about.h2': 'Monitor a domain name\'s availability, for free',
       'about.p1': 'DoomName is a free service that continuously monitors the availability of the domain names you care about. Enter a domain: we query WHOIS servers in real time to know whether it is free, registered, or expiring. If it is taken, enable an alert and we will notify you automatically, by email and notification, as soon as it is released.',
       'about.p2': 'Many domains expire every day without being renewed. DoomName checks their status every hour and follows their full life cycle — grace period, redemption, deletion — to alert you at the right time. It works from the web and the Android app, and a public API lets developers automate their own monitoring.',
