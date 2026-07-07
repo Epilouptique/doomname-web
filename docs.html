@@ -49,6 +49,7 @@
       width: 240px; flex-shrink: 0;
       background: var(--surface);
       border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
       padding: 2rem 1.5rem;
       position: sticky; top: 0; height: 100vh;
       overflow-y: auto;
@@ -90,7 +91,10 @@
     .del  { background: var(--danger-dim);  color: var(--danger);  border: 1px solid var(--danger-border); }
 
     /* Main content */
-    .main { flex: 1; padding: 3rem 3rem 5rem; max-width: 860px; }
+    /* min-width:0 : sans ça, un flex item ne rétrécit pas sous la largeur de son
+       contenu (min-width:auto par défaut), et les blocs de code larges débordent
+       la page au lieu de scroller à l'intérieur de .code-block. */
+    .main { flex: 1; min-width: 0; padding: 3rem 3rem 5rem; max-width: 860px; }
 
     h1 { font-size: 2rem; font-weight: 300; letter-spacing: -0.04em; margin-bottom: 0.5rem; }
     h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
@@ -220,9 +224,23 @@
     }
     footer a { color: var(--accent); text-decoration: none; }
 
-    @media (max-width: 640px) {
+    @media (max-width: 768px) {
       .sidebar { display: none; }
       .main { padding: 2rem 1.25rem 4rem; }
+      footer { padding: 0 1.25rem 3rem; }
+
+      h1 { font-size: 1.6rem; }
+      h2 { font-size: 1.1rem; }
+
+      /* Tableaux : autorise le scroll horizontal interne si nécessaire
+         plutôt que d'élargir la page. */
+      .params-table { display: block; overflow-x: auto; }
+
+      .code-block { padding: 0.85rem 1rem; }
+      .code-block pre { font-size: 0.78rem; }
+
+      .endpoint-header { flex-wrap: wrap; }
+      .endpoint-path { font-size: 0.82rem; word-break: break-all; }
     }
   </style>
 </head>
@@ -443,6 +461,7 @@
   <footer>
     DoomName v1.0 — Développé par Hugo Vial-Jaime
     — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
+    &nbsp;·&nbsp; <a href="/">Accueil</a>
     &nbsp;·&nbsp; <a href="/cgv.html">CGV</a>
   </footer>
 
