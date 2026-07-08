@@ -94,7 +94,7 @@
     /* min-width:0 : sans ça, un flex item ne rétrécit pas sous la largeur de son
        contenu (min-width:auto par défaut), et les blocs de code larges débordent
        la page au lieu de scroller à l'intérieur de .code-block. */
-    .main { flex: 1; min-width: 0; padding: 3rem 3rem 5rem; max-width: 860px; }
+    .main { flex: 1; min-width: 0; padding: 3rem 3rem 5rem; max-width: 860px; margin-top: 3rem;}
 
     h1 { font-size: 2rem; font-weight: 300; letter-spacing: -0.04em; margin-bottom: 0.5rem; }
     h1 em { font-style: normal; color: var(--accent); font-weight: 500; }
@@ -274,86 +274,84 @@
       </a>
 
       <div class="sidebar-section">
-        <p class="sidebar-section-title">Démarrage</p>
-        <a href="#intro"      class="sidebar-link">Introduction</a>
-        <a href="#auth"       class="sidebar-link">Authentification</a>
-        <a href="#limits"     class="sidebar-link">Limites</a>
-        <a href="#errors"     class="sidebar-link">Codes d'erreur</a>
+        <p class="sidebar-section-title" data-i18n="docs.side_start">Démarrage</p>
+        <a href="#intro"      class="sidebar-link" data-i18n="docs.side_intro">Introduction</a>
+        <a href="#auth"       class="sidebar-link" data-i18n="docs.side_auth">Authentification</a>
+        <a href="#limits"     class="sidebar-link" data-i18n="docs.side_limits">Limites</a>
+        <a href="#errors"     class="sidebar-link" data-i18n="docs.side_errors">Codes d'erreur</a>
       </div>
 
       <div class="sidebar-section">
-        <p class="sidebar-section-title">Endpoints</p>
+        <p class="sidebar-section-title" data-i18n="docs.side_endpoints">Endpoints</p>
         <a href="#check"       class="sidebar-link"><span class="method-badge get">GET</span> /v1/check</a>
         <a href="#subscribe"   class="sidebar-link"><span class="method-badge post">POST</span> /v1/subscribe</a>
         <a href="#unsubscribe" class="sidebar-link"><span class="method-badge del">DEL</span> /v1/unsubscribe</a>
       </div>
 
       <div class="sidebar-section">
-        <p class="sidebar-section-title">Clé API</p>
-        <a href="#get-key" class="sidebar-link">Obtenir une clé</a>
+        <p class="sidebar-section-title" data-i18n="docs.side_apikey">Clé API</p>
+        <a href="#get-key" class="sidebar-link" data-i18n="docs.side_getkey">Obtenir une clé</a>
       </div>
     </nav>
 
     <!-- Contenu principal -->
     <main class="main">
 
-      <div data-en-only data-i18n="legal.notice" style="display:none;margin:0 0 1.25rem;padding:0.7rem 1rem;border:1px solid var(--border-md);border-radius:8px;background:var(--surface2);color:var(--text-muted);font-size:0.82rem;text-align:center">Courtesy translation — only the French version prevails.</div>
-
-      <h1 id="intro">Documentation <em>API</em></h1>
-      <p>L'API DoomName vous permet de vérifier la disponibilité de noms de domaine et de gérer des alertes depuis votre propre application.</p>
+      <h1 id="intro" data-i18n-html="docs.h1">Documentation <em>API</em></h1>
+      <p data-i18n="docs.intro_p">L'API DoomName vous permet de vérifier la disponibilité de noms de domaine et de gérer des alertes depuis votre propre application.</p>
       <p>Base URL : <code style="font-family:var(--mono);font-size:0.85rem;color:var(--accent)">https://www.doomname.com</code></p>
 
-      <div class="alert alert-info">
+      <div class="alert alert-info" data-i18n="docs.alert_free">
         API gratuite · 100 requêtes/jour · Aucune inscription requise — juste un e-mail pour recevoir votre clé.
       </div>
 
       <!-- Authentification -->
-      <h2 id="auth">Authentification</h2>
-      <p>Toutes les requêtes sur <code style="font-family:var(--mono);color:var(--accent)">/api/v1/</code> nécessitent une clé API passée dans le header HTTP :</p>
+      <h2 id="auth" data-i18n="docs.h2_auth">Authentification</h2>
+      <p data-i18n-html="docs.auth_p1">Toutes les requêtes sur <code style="font-family:var(--mono);color:var(--accent)">/api/v1/</code> nécessitent une clé API passée dans le header HTTP :</p>
 
       <div class="code-block">
         <pre>Authorization: Bearer dk_votre_cle_api</pre>
       </div>
 
-      <p>Sans clé ou avec une clé invalide, vous recevrez une erreur <code style="font-family:var(--mono);color:var(--danger)">401</code>.</p>
+      <p data-i18n-html="docs.auth_p2">Sans clé ou avec une clé invalide, vous recevrez une erreur <code style="font-family:var(--mono);color:var(--danger)">401</code>.</p>
 
       <!-- Limites -->
-      <h2 id="limits">Limites de taux</h2>
-      <p>Chaque clé API est limitée à <strong>100 requêtes par jour</strong> (remise à zéro à minuit UTC). Au-delà, vous recevrez une erreur <code style="font-family:var(--mono);color:var(--warning)">429</code>.</p>
-      <p>Chaque réponse inclut les champs <code style="font-family:var(--mono);color:var(--accent)">requests_today</code> et <code style="font-family:var(--mono);color:var(--accent)">daily_limit</code> pour suivre votre consommation.</p>
+      <h2 id="limits" data-i18n="docs.h2_limits">Limites de taux</h2>
+      <p data-i18n-html="docs.limits_p1">Chaque clé API est limitée à <strong>100 requêtes par jour</strong> (remise à zéro à minuit UTC). Au-delà, vous recevrez une erreur <code style="font-family:var(--mono);color:var(--warning)">429</code>.</p>
+      <p data-i18n-html="docs.limits_p2">Chaque réponse inclut les champs <code style="font-family:var(--mono);color:var(--accent)">requests_today</code> et <code style="font-family:var(--mono);color:var(--accent)">daily_limit</code> pour suivre votre consommation.</p>
 
       <!-- Codes d'erreur -->
-      <h2 id="errors">Codes d'erreur</h2>
+      <h2 id="errors" data-i18n="docs.h2_errors">Codes d'erreur</h2>
       <table class="params-table">
-        <tr><th>Code</th><th>Signification</th></tr>
-        <tr><td><code>200</code></td><td>Succès</td></tr>
-        <tr><td><code>400</code></td><td>Paramètre manquant ou invalide</td></tr>
-        <tr><td><code>401</code></td><td>Clé API manquante ou invalide</td></tr>
-        <tr><td><code>429</code></td><td>Limite journalière atteinte</td></tr>
-        <tr><td><code>500</code></td><td>Erreur serveur</td></tr>
+        <tr><th data-i18n="docs.th_code">Code</th><th data-i18n="docs.th_meaning">Signification</th></tr>
+        <tr><td><code>200</code></td><td data-i18n="docs.err_200">Succès</td></tr>
+        <tr><td><code>400</code></td><td data-i18n="docs.err_400">Paramètre manquant ou invalide</td></tr>
+        <tr><td><code>401</code></td><td data-i18n="docs.err_401">Clé API manquante ou invalide</td></tr>
+        <tr><td><code>429</code></td><td data-i18n="docs.err_429">Limite journalière atteinte</td></tr>
+        <tr><td><code>500</code></td><td data-i18n="docs.err_500">Erreur serveur</td></tr>
       </table>
 
       <!-- GET /check -->
-      <h2 id="check">Vérifier un domaine</h2>
+      <h2 id="check" data-i18n="docs.h2_check">Vérifier un domaine</h2>
       <div class="endpoint">
         <div class="endpoint-header">
           <span class="endpoint-method get">GET</span>
           <span class="endpoint-path">/api/v1/check</span>
         </div>
-        <div class="endpoint-desc">Vérifie la disponibilité d'un nom de domaine via WHOIS en temps réel.</div>
+        <div class="endpoint-desc" data-i18n="docs.check_desc">Vérifie la disponibilité d'un nom de domaine via WHOIS en temps réel.</div>
       </div>
 
-      <h3>Paramètres</h3>
+      <h3 data-i18n="docs.h3_params">Paramètres</h3>
       <table class="params-table">
-        <tr><th>Paramètre</th><th>Type</th><th>Requis</th><th>Description</th></tr>
-        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>Le nom de domaine à vérifier (ex: exemple.com)</td></tr>
+        <tr><th data-i18n="docs.th_param">Paramètre</th><th data-i18n="docs.th_type">Type</th><th data-i18n="docs.th_required">Requis</th><th data-i18n="docs.th_desc">Description</th></tr>
+        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required" data-i18n="docs.req_yes">Oui</span></td><td data-i18n="docs.check_domain_desc">Le nom de domaine à vérifier (ex: exemple.com)</td></tr>
       </table>
 
-      <p class="code-label">Requête</p>
+      <p class="code-label" data-i18n="docs.label_request">Requête</p>
       <div class="code-block"><pre>curl "https://www.doomname.com/api/v1/check?domain=exemple.com" \
   -H "Authorization: Bearer dk_votre_cle_api"</pre></div>
 
-      <p class="code-label">Réponse — domaine disponible</p>
+      <p class="code-label" data-i18n="docs.label_resp_available">Réponse — domaine disponible</p>
       <div class="code-block"><pre>{
   "domain":         "exemple.com",
   "available":      true,
@@ -363,7 +361,7 @@
   "daily_limit":    100
 }</pre></div>
 
-      <p class="code-label">Réponse — domaine pris</p>
+      <p class="code-label" data-i18n="docs.label_resp_taken">Réponse — domaine pris</p>
       <div class="code-block"><pre>{
   "domain":         "google.com",
   "available":      false,
@@ -374,29 +372,29 @@
 }</pre></div>
 
       <!-- POST /subscribe -->
-      <h2 id="subscribe">S'abonner à une alerte</h2>
+      <h2 id="subscribe" data-i18n="docs.h2_subscribe">S'abonner à une alerte</h2>
       <div class="endpoint">
         <div class="endpoint-header">
           <span class="endpoint-method post">POST</span>
           <span class="endpoint-path">/api/v1/subscribe</span>
         </div>
-        <div class="endpoint-desc">Active une alerte e-mail pour être notifié dès qu'un domaine devient disponible.</div>
+        <div class="endpoint-desc" data-i18n="docs.subscribe_desc">Active une alerte e-mail pour être notifié dès qu'un domaine devient disponible.</div>
       </div>
 
-      <h3>Corps de la requête (JSON)</h3>
+      <h3 data-i18n="docs.h3_body">Corps de la requête (JSON)</h3>
       <table class="params-table">
-        <tr><th>Paramètre</th><th>Type</th><th>Requis</th><th>Description</th></tr>
-        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>Le domaine à surveiller</td></tr>
-        <tr><td><code>email</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>L'adresse e-mail qui recevra l'alerte</td></tr>
+        <tr><th data-i18n="docs.th_param">Paramètre</th><th data-i18n="docs.th_type">Type</th><th data-i18n="docs.th_required">Requis</th><th data-i18n="docs.th_desc">Description</th></tr>
+        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required" data-i18n="docs.req_yes">Oui</span></td><td data-i18n="docs.sub_domain_desc">Le domaine à surveiller</td></tr>
+        <tr><td><code>email</code></td><td>string</td><td><span class="param-required" data-i18n="docs.req_yes">Oui</span></td><td data-i18n="docs.sub_email_desc">L'adresse e-mail qui recevra l'alerte</td></tr>
       </table>
 
-      <p class="code-label">Requête</p>
+      <p class="code-label" data-i18n="docs.label_request">Requête</p>
       <div class="code-block"><pre>curl -X POST "https://www.doomname.com/api/v1/subscribe" \
   -H "Authorization: Bearer dk_votre_cle_api" \
   -H "Content-Type: application/json" \
   -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
 
-      <p class="code-label">Réponse</p>
+      <p class="code-label" data-i18n="docs.label_response">Réponse</p>
       <div class="code-block"><pre>{
   "success": true,
   "domain":  "mondomaine.fr",
@@ -405,55 +403,55 @@
 }</pre></div>
 
       <!-- DELETE /unsubscribe -->
-      <h2 id="unsubscribe">Se désabonner</h2>
+      <h2 id="unsubscribe" data-i18n="docs.h2_unsubscribe">Se désabonner</h2>
       <div class="endpoint">
         <div class="endpoint-header">
           <span class="endpoint-method del">DELETE</span>
           <span class="endpoint-path">/api/v1/unsubscribe</span>
         </div>
-        <div class="endpoint-desc">Désactive une alerte e-mail existante.</div>
+        <div class="endpoint-desc" data-i18n="docs.unsub_desc">Désactive une alerte e-mail existante.</div>
       </div>
 
-      <h3>Corps de la requête (JSON)</h3>
+      <h3 data-i18n="docs.h3_body">Corps de la requête (JSON)</h3>
       <table class="params-table">
-        <tr><th>Paramètre</th><th>Type</th><th>Requis</th><th>Description</th></tr>
-        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>Le domaine concerné</td></tr>
-        <tr><td><code>email</code></td><td>string</td><td><span class="param-required">Oui</span></td><td>L'adresse e-mail abonnée</td></tr>
+        <tr><th data-i18n="docs.th_param">Paramètre</th><th data-i18n="docs.th_type">Type</th><th data-i18n="docs.th_required">Requis</th><th data-i18n="docs.th_desc">Description</th></tr>
+        <tr><td><code>domain</code></td><td>string</td><td><span class="param-required" data-i18n="docs.req_yes">Oui</span></td><td data-i18n="docs.unsub_domain_desc">Le domaine concerné</td></tr>
+        <tr><td><code>email</code></td><td>string</td><td><span class="param-required" data-i18n="docs.req_yes">Oui</span></td><td data-i18n="docs.unsub_email_desc">L'adresse e-mail abonnée</td></tr>
       </table>
 
-      <p class="code-label">Requête</p>
+      <p class="code-label" data-i18n="docs.label_request">Requête</p>
       <div class="code-block"><pre>curl -X DELETE "https://www.doomname.com/api/v1/unsubscribe" \
   -H "Authorization: Bearer dk_votre_cle_api" \
   -H "Content-Type: application/json" \
   -d '{"domain": "mondomaine.fr", "email": "vous@exemple.com"}'</pre></div>
 
-      <p class="code-label">Réponse</p>
+      <p class="code-label" data-i18n="docs.label_response">Réponse</p>
       <div class="code-block"><pre>{
   "success": true,
   "message": "Alerte désactivée."
 }</pre></div>
 
       <!-- Obtenir une clé -->
-      <h2 id="get-key">Obtenir une clé API</h2>
-      <p>Entrez votre adresse e-mail pour recevoir votre clé API gratuitement. Vous pouvez créer jusqu'à 3 clés par adresse.</p>
+      <h2 id="get-key" data-i18n="docs.h2_getkey">Obtenir une clé API</h2>
+      <p data-i18n="docs.getkey_p">Entrez votre adresse e-mail pour recevoir votre clé API gratuitement. Vous pouvez créer jusqu'à 3 clés par adresse.</p>
 
       <div class="key-form">
         <div class="key-form-body">
           <div class="form-group">
-            <label class="form-label" for="key-email">Adresse e-mail</label>
+            <label class="form-label" for="key-email" data-i18n="docs.form_email">Adresse e-mail</label>
             <input type="email" id="key-email" placeholder="vous@exemple.com" />
           </div>
           <div class="form-group">
-            <label class="form-label" for="key-label">Label <span style="color:var(--text-dim);font-weight:400">(optionnel)</span></label>
-            <input type="text" id="key-label" placeholder="Mon projet, Mon app..." />
-            <p class="form-hint">Pour vous souvenir à quoi sert cette clé.</p>
+            <label class="form-label" for="key-label"><span data-i18n="docs.form_label">Label</span> <span style="color:var(--text-dim);font-weight:400" data-i18n="docs.form_optional">(optionnel)</span></label>
+            <input type="text" id="key-label" placeholder="Mon projet, Mon app..." data-i18n-ph="docs.form_label_ph" />
+            <p class="form-hint" data-i18n="docs.form_hint">Pour vous souvenir à quoi sert cette clé.</p>
           </div>
-          <button class="btn btn-primary" id="key-btn" onclick="requestApiKey()">Recevoir ma clé API</button>
+          <button class="btn btn-primary" id="key-btn" onclick="requestApiKey()" data-i18n="docs.form_btn">Recevoir ma clé API</button>
           <div class="form-alert" id="key-alert"></div>
         </div>
       </div>
 
-      <div class="alert alert-warning" style="margin-top:1.5rem">
+      <div class="alert alert-warning" style="margin-top:1.5rem" data-i18n="docs.warning">
         Ne partagez pas votre clé API publiquement. Si elle est compromise, contactez-nous pour la révoquer.
       </div>
 
@@ -497,13 +495,13 @@
       alertEl.style.display = 'none';
 
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        alertEl.textContent = 'Veuillez entrer une adresse e-mail valide.';
+        alertEl.textContent = t('docs.js_invalid_email');
         alertEl.className = 'form-alert error';
         return;
       }
 
       const btn = document.getElementById('key-btn');
-      btn.innerHTML = '<span class="spinner"></span>Envoi…';
+      btn.innerHTML = '<span class="spinner"></span>' + t('docs.js_sending');
       btn.disabled = true;
 
       try {
@@ -514,20 +512,20 @@
         const data = await res.json();
 
         if (data.success) {
-          alertEl.textContent = '✓ Votre clé API a été envoyée par e-mail !';
+          alertEl.textContent = t('docs.js_key_sent');
           alertEl.className = 'form-alert success';
           document.getElementById('key-email').value = '';
           document.getElementById('key-label').value = '';
         } else {
-          alertEl.textContent = data.error || 'Une erreur est survenue.';
+          alertEl.textContent = data.error || t('docs.js_error');
           alertEl.className = 'form-alert error';
         }
       } catch {
-        alertEl.textContent = 'Impossible de contacter le serveur.';
+        alertEl.textContent = t('docs.js_conn_error');
         alertEl.className = 'form-alert error';
       }
 
-      btn.innerHTML = 'Recevoir ma clé API';
+      btn.innerHTML = t('docs.form_btn');
       btn.disabled = false;
     }
 
