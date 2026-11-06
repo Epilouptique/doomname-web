@@ -5,7 +5,9 @@ const cors       = require('cors');
 const cookieParser = require('cookie-parser');
 const path       = require('path');
 const crypto     = require('crypto');
-const whois      = require('whois-json');
+const whoisLib   = require('whois');
+const parseWhoisFields = require('whois-json/parse-raw-data.js');
+const util       = require('util');
 const cron       = require('node-cron');
 const { Pool }   = require('pg');
 const { Resend } = require('resend');
@@ -43,6 +45,9 @@ async function initDB() {
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_status VARCHAR(32) DEFAULT 'taken'`);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_confirmation_since TIMESTAMPTZ`);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ`);
+  // Date du dernier changement de last_status (mise en évidence côté client).
+  // notified_at, lui, ne date que les envois et n'est jamais remis à NULL.
+  await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_change_at TIMESTAMPTZ`);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS lang VARCHAR(2) DEFAULT 'fr'`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS magic_links (
@@ -487,83 +492,178 @@ async function sendApiKeyEmail(email, key, label) {
     </p>`);
 }
 
-// ─── Cache WHOIS (évite le rate-limiting des registrars) ──────────────────────
+// ─── WHOIS : file d'attente globale par TLD ────────────────────────────────────
+// Incident du 13/10/2026 : le WHOIS AFNIC a rate-limité l'IP Railway et ses
+// refus ont été lus comme "disponible". Toutes les requêtes WHOIS du serveur
+// (cron, /api/check, API publique, détection à l'ajout, consultation) passent
+// désormais par une file unique PAR TLD : jamais deux requêtes simultanées vers
+// un même registre, et un délai minimum entre deux requêtes, quelle que soit
+// leur origine.
+const WHOIS_TIMEOUT_MS   = 15 * 1000;
+const TLD_MIN_GAP_MS     = { fr: 1500 };   // AFNIC : 1,5 s minimum entre deux requêtes
+const DEFAULT_TLD_GAP_MS = 1000;
+const tldQueues = new Map();               // tld → { tail: Promise, waiting: number }
+
+const whoisLookupRaw = util.promisify(whoisLib.lookup);
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const tldOf = (domain) => String(domain).toLowerCase().split('.').pop();
+
+class WhoisQueueFullError extends Error {}
+
+// maxWaiting : pour les routes interactives, refuse plutôt que d'attendre
+// derrière un cron en cours (le client reçoit un 503, le quota est préservé).
+function queuedWhois(domain, { maxWaiting = Infinity } = {}) {
+  const tld = tldOf(domain);
+  const q = tldQueues.get(tld) || { tail: Promise.resolve(), waiting: 0 };
+  tldQueues.set(tld, q);
+  if (q.waiting >= maxWaiting) {
+    return Promise.reject(new WhoisQueueFullError(`file WHOIS .${tld} saturée (${q.waiting} en attente)`));
+  }
+  q.waiting++;
+  const gap = TLD_MIN_GAP_MS[tld] ?? DEFAULT_TLD_GAP_MS;
+  // follow: 0 → on n'interroge que le registre (source qui fait foi pour la
+  // disponibilité), pas le registrar, qui a ses propres limites.
+  const run = q.tail.then(() => whoisLookupRaw(domain, { follow: 0, timeout: WHOIS_TIMEOUT_MS }));
+  q.tail = run.catch(() => {}).then(() => { q.waiting--; return sleep(gap); });
+  return run;
+}
+
+// ─── Cache WHOIS (requêtes interactives uniquement) ───────────────────────────
+// Le cron (et donc la confirmation) n'utilise JAMAIS ce cache : il interroge
+// toujours le registre.
 const whoisCache = new Map();
 const CACHE_DURATION_MS = 60 * 1000; // 60 secondes
 
-// ─── Confirmation différée avant alerte "disponible" ───────────────────────────
-// Certains domaines à forte valeur sont recapturés en quelques secondes par des
-// bots de drop-catching dès leur libération. Plutôt que d'alerter dès la
-// première détection "disponible" du cron horaire, on attend 10 minutes et on
-// revérifie ce domaine précis avant de notifier — sans changer la fréquence du
-// cron principal.
-const CONFIRMATION_DELAY_MS = 10 * 60 * 1000; // 10 minutes
-
-async function getWhoisWithCache(domain) {
+async function getWhoisRawWithCache(domain, opts) {
   const cached = whoisCache.get(domain);
   if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION_MS) {
-    return cached.data;
+    return cached.raw;
   }
-  const whoisData = await whois(domain);
-  whoisCache.set(domain, { data: whoisData, timestamp: Date.now() });
-  return whoisData;
+  const raw = await queuedWhois(domain, opts);
+  whoisCache.set(domain, { raw, timestamp: Date.now() });
+  return raw;
 }
+
+// ─── Confirmation différée avant alerte "disponible" ───────────────────────────
+// Une première détection "disponible" ne déclenche rien : le domaine passe en
+// attente de confirmation, et n'est confirmé que par un run du cron situé au
+// moins 1 h plus tard (nouvelle requête au registre, hors cache) — en pratique
+// le run horaire suivant ou celui d'après. 1 h sort de la fenêtre de rate-limit ;
+// passer par le cron (au lieu d'un setTimeout par domaine) garantit que les
+// confirmations sont espacées par la file par TLD et couvertes par le
+// disjoncteur, au lieu d'être rejouées en rafale comme le 13/10.
+const CONFIRMATION_DELAY_MS = 60 * 60 * 1000; // 1 heure minimum
 
 // ─── Vérification WHOIS ────────────────────────────────────────────────────────
-function parseDomainAvailability(whoisData) {
-  if (!whoisData || Object.keys(whoisData).length === 0) return { available: true };
+// Règle : "available" n'est conclu QUE sur un marqueur explicite de
+// disponibilité propre au TLD. Tout le reste (vide, erreur, timeout, refus,
+// réponse non reconnue, TLD non cartographié) → "unknown", qui ne déclenche
+// jamais de notification et n'écrase jamais le dernier statut connu.
 
-  const raw = JSON.stringify(whoisData).toLowerCase();
+// Motifs de refus / rate-limit / maintenance — testés AVANT tout marqueur.
+const REFUSAL_PATTERNS = [
+  /rate.?limit/i, /too many/i, /exceeded/i, /quota/i, /excessive/i,
+  /try again/i, /temporarily unavailable/i, /service unavailable/i,
+  /maintenance/i, /access denied/i, /query refused/i, /connection refused/i,
+  /overload/i, /please wait/i,
+];
 
-  // Détection de réponse suspecte/tronquée (signe de rate-limiting du registrar)
-  const dataSize = JSON.stringify(whoisData).length;
-  const hasMinimalFields = Object.keys(whoisData).length <= 2;
-  if (dataSize < 100 && hasMinimalFields) {
-    throw new Error('Réponse WHOIS suspecte (possible rate-limiting du registrar)');
+// Marqueurs explicites de disponibilité, par TLD (TLDs présents en base).
+const TLD_RULES = {
+  fr:     { free: [/^%% NOT FOUND/m, /^No entries found/mi] },                 // AFNIC
+  com:    { free: [/^\s*No match for (domain )?"/mi] },                        // Verisign
+  net:    { free: [/^\s*No match for (domain )?"/mi] },                        // Verisign
+  io:     { free: [/^\s*Domain not found\.?\s*$/mi, /^\s*NOT FOUND\s*$/mi] },  // Identity Digital
+  // .studio : plus de serveur WHOIS (IANA n'en déclare aucun, whois.nic.studio
+  // répond "TLD is not supported.") → toujours "unknown" tant qu'un client RDAP
+  // n'est pas en place. Marqueur conservé pour le jour où le WHOIS répondrait.
+  studio: { free: [/^\s*Domain not found\.?\s*$/mi] },                         // Identity Digital
+};
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// La réponse brute n'est loggée que pour REFUSAL et UNMAPPED_TLD (pas de
+// données de titulaire dans ces réponses), tronquée à 1000 caractères. Les
+// autres "unknown" (réponse non reconnue, erreur, timeout…) peuvent contenir
+// des coordonnées de titulaire : domaine + raison + horodatage seulement.
+function logUnknown(domain, reason, raw) {
+  const tag = reason === 'unmapped_tld' ? 'UNMAPPED_TLD' : reason === 'refusal' ? 'REFUSAL' : 'UNKNOWN';
+  const withRaw = tag !== 'UNKNOWN';
+  console.warn(`[WHOIS][${tag}] ${new Date().toISOString()} ${domain} (raison : ${reason})` +
+    (withRaw ? ` — réponse brute : ${JSON.stringify(String(raw ?? '').slice(0, 1000))}` : ''));
+}
+
+// Classe une réponse WHOIS brute (texte). Ne lève jamais.
+function classifyWhois(domain, raw) {
+  const unknown = (reason) => {
+    logUnknown(domain, reason, raw);
+    return { available: null, status: 'unknown', reason, expiry: null };
+  };
+  const text = String(raw ?? '');
+  if (!text.trim()) return unknown('empty');
+
+  // 1. Refus / maintenance — en premier. Cherché uniquement avant les mentions
+  //    légales : celles d'Identity Digital (.io) contiennent "too many queries"
+  //    et "maintenance periods" sur chaque réponse.
+  const legalStart = text.search(/^\s*(>>> Last update|Terms of Use\s*:|TERMS OF USE\s*:|NOTICE\s*:)/m);
+  const head = legalStart === -1 ? text : text.slice(0, legalStart);
+  if (REFUSAL_PATTERNS.some(re => re.test(head))) return unknown('refusal');
+
+  // 2. TLD non cartographié — tracé à part d'un refus dans les logs.
+  const rules = TLD_RULES[tldOf(domain)];
+  if (!rules) return unknown('unmapped_tld');
+
+  // 3. Marqueur explicite de disponibilité, propre au TLD.
+  if (rules.free.some(re => re.test(text))) {
+    return { available: true, status: 'available', reason: 'free_marker', expiry: null };
   }
 
-  const freeSignals = ['no match','not found','no entries found','status: free','status: available','object does not exist','no object found','not registered','available for registration','domain not found'];
-  if (freeSignals.some(s => raw.includes(s))) return { available: true, status: 'available' };
+  // 4. Marqueur explicite d'enregistrement : la réponse nomme le domaine demandé.
+  const takenRe = new RegExp(`^\\s*domain(\\s*name)?\\s*:\\s*${escapeRe(domain)}\\.?\\s*$`, 'mi');
+  if (!takenRe.test(text)) return unknown('unrecognized');
 
-  // Mots-clés indiquant un domaine enregistré — inclut les champs spécifiques
-  // aux TLD à WHOIS minimaliste (.eu → "organisation"/"holder", .de → "nserver")
-  const takenSignals = [
-    'registrar', 'creation date', 'created', 'registrant', 'name server', 'nameserver',
-    'status: active', 'status: ok', 'status: connect',
-    'organisation', 'holder:', 'nserver:', 'tech-c:', 'admin-c:', 'mnt-by:',
-    'registered on', 'changed:', 'source: ripe', 'source: denic',
-  ];
-  const hasTakenKeyword = takenSignals.some(s => raw.includes(s));
+  // Statuts EPP de fin de vie (grace period / redemption / pending delete),
+  // pour alerter avant la libération effective du domaine.
+  const lower = text.toLowerCase();
+  let status = 'taken';
+  if (lower.includes('pendingdelete') || lower.includes('pending delete')) status = 'pendingDelete';
+  else if (lower.includes('redemptionperiod') || lower.includes('redemption period')) status = 'redemptionPeriod';
+  else if (lower.includes('autorenewperiod') || lower.includes('auto-renew') || lower.includes('renewperiod') || lower.includes('grace period')) status = 'gracePeriod';
 
-  // Repli conservateur : si aucun signal libre/pris ne correspond mais que la
-  // réponse est très volumineuse (>600 chars et >5 champs), on suppose pris.
-  // Seuil élevé pour éviter de déclarer "pris" des domaines libres dont le
-  // registrar renvoie une réponse structurée mais vide de données d'enregistrement.
-  const fieldCount = Object.keys(whoisData).length;
-  const hasSubstantialData = fieldCount >= 6 && dataSize >= 600;
-
-  const isTaken = hasTakenKeyword || hasSubstantialData;
-
-  const expiry =
-    whoisData.registryExpiryDate || whoisData.expiresOn ||
-    whoisData.expirationDate || whoisData['expiry date'] ||
-    whoisData['paid-till'] || null;
-
-  // Détection des statuts EPP de fin de vie d'un domaine (grace period / redemption / pending delete)
-  // afin d'alerter les utilisateurs avant la libération effective du domaine.
-  let status = isTaken ? 'taken' : 'available';
-  if (isTaken) {
-    if (raw.includes('pendingdelete') || raw.includes('pending delete')) status = 'pendingDelete';
-    else if (raw.includes('redemptionperiod') || raw.includes('redemption period')) status = 'redemptionPeriod';
-    else if (raw.includes('autorenewperiod') || raw.includes('auto-renew') || raw.includes('renewperiod') || raw.includes('grace period')) status = 'gracePeriod';
-  }
+  const fields = parseWhoisFields(text);
+  const expiryRaw =
+    fields.registryExpiryDate || fields.expiresOn || fields.expirationDate ||
+    fields.expiryDate || fields.paidTill || null;
+  const expiry = expiryRaw ? new Date(expiryRaw) : null;
 
   return {
-    available: !isTaken,
+    available: false,
     status,
-    expiry: expiry ? new Date(expiry).toLocaleDateString('fr-FR') : null
+    reason: 'taken_marker',
+    expiry: expiry && !isNaN(expiry) ? expiry.toLocaleDateString('fr-FR') : null,
   };
 }
+
+// Point d'entrée unique : requête (file par TLD) + classification. Ne lève
+// jamais : erreur réseau, timeout ou file saturée → "unknown".
+// cache: true uniquement pour les routes interactives.
+async function checkWhois(domain, { cache = false, maxWaiting } = {}) {
+  domain = String(domain).toLowerCase();
+  let raw;
+  try {
+    raw = cache ? await getWhoisRawWithCache(domain, { maxWaiting })
+                : await queuedWhois(domain, { maxWaiting });
+  } catch (err) {
+    const reason = err instanceof WhoisQueueFullError ? 'queue_full'
+                 : /timeout/i.test(err.message) ? 'timeout' : 'error';
+    logUnknown(domain, reason, `ERREUR : ${err.message}`);
+    return { available: null, status: 'unknown', reason, expiry: null, raw: null };
+  }
+  return { ...classifyWhois(domain, raw), raw };
+}
+
+// Routes interactives : au-delà de 3 requêtes en attente sur le TLD → 503.
+const INTERACTIVE = { cache: true, maxWaiting: 3 };
 
 // ─── Middleware API Key ────────────────────────────────────────────────────────
 const DAILY_LIMIT = 100;
@@ -622,40 +722,34 @@ app.get('/api/check', async (req, res) => {
   if (!domain || !/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) {
     return res.status(400).json({ error: 'Nom de domaine invalide' });
   }
-  try {
-    const whoisData = await getWhoisWithCache(domain);
-    return res.json(parseDomainAvailability(whoisData));
-  } catch (err) {
-    console.error(`Erreur WHOIS pour ${domain}:`, err.message);
+  const { available, status, expiry } = await checkWhois(domain, INTERACTIVE);
+  if (status === 'unknown') {
     return res.status(503).json({ error: 'Service WHOIS temporairement indisponible, réessayez dans une minute' });
   }
+  return res.json({ available, status, expiry });
 });
 
 // Détecte immédiatement le statut WHOIS d'un domaine à l'ajout et l'enregistre,
 // sans attendre le cron horaire. Si le domaine est déjà disponible, on le marque
-// 'available' (+ notified_at) pour qu'il apparaisse aussitôt dans le filtre
-// "Disponible". Robuste aux erreurs WHOIS (garde le défaut 'taken' le cas échéant).
+// 'available' (+ last_change_at) pour qu'il apparaisse aussitôt dans le filtre
+// "Disponible". Un résultat "unknown" n'écrit rien (garde le dernier statut
+// connu, 'taken' par défaut). notified_at n'est jamais touché ici (aucun envoi).
 // N'interfère pas avec la confirmation différée : on ne fait qu'écrire last_status.
 // IMPORTANT : ne JAMAIS envoyer d'e-mail ni de push ici. Les notifications ne
 // partent que du cron et des routes de test — l'ajout d'une surveillance (même
 // 'available') reste totalement silencieux.
 async function detectAndStoreStatus(domain, email) {
   try {
-    const whoisData = await getWhoisWithCache(domain);
-    const { available, status } = parseDomainAvailability(whoisData);
-    if (available) {
-      await db.query(
-        "UPDATE subscriptions SET last_status = 'available', notified_at = NOW() WHERE domain = $1 AND email = $2",
-        [domain, email]
-      );
-      return 'available';
-    }
-    const finalStatus = status || 'taken';
+    const { status } = await checkWhois(domain, INTERACTIVE);
+    if (status === 'unknown') return null;
     await db.query(
-      'UPDATE subscriptions SET last_status = $3, notified_at = NULL WHERE domain = $1 AND email = $2',
-      [domain, email, finalStatus]
+      `UPDATE subscriptions
+          SET last_status = $3,
+              last_change_at = CASE WHEN last_status IS DISTINCT FROM $3 THEN NOW() ELSE last_change_at END
+        WHERE domain = $1 AND email = $2`,
+      [domain, email, status]
     );
-    return finalStatus;
+    return status;
   } catch (err) {
     console.warn(`Détection de statut immédiate échouée pour ${domain}:`, err.message);
     return null;
@@ -883,7 +977,7 @@ app.get('/api/manage/subscriptions', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'E-mail requis' });
   try {
-    const { rows } = await db.query('SELECT id, domain, active, created_at, last_status, notified_at FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
+    const { rows } = await db.query('SELECT id, domain, active, created_at, last_status, notified_at, last_change_at FROM subscriptions WHERE email = $1 ORDER BY created_at DESC', [email.toLowerCase()]);
     return res.json(rows);
   } catch (err) { return res.status(500).json({ error: 'Erreur serveur' }); }
 });
@@ -954,8 +1048,8 @@ app.get('/api/manage/whois', async (req, res) => {
     const { rows } = await db.query('SELECT id FROM subscriptions WHERE domain = $1 AND email = $2', [domain.toLowerCase(), email.toLowerCase()]);
     if (rows.length === 0) return res.status(404).json({ error: "Ce domaine n'est pas dans votre liste de surveillance" });
 
-    const whoisData = await getWhoisWithCache(domain.toLowerCase());
-    const raw = Object.entries(whoisData || {}).map(([k, v]) => `${k}: ${v}`).join('\n') || 'Aucune donnée WHOIS disponible.';
+    const whoisRaw = await getWhoisRawWithCache(domain.toLowerCase(), { maxWaiting: INTERACTIVE.maxWaiting });
+    const raw = String(whoisRaw || '').trim() || 'Aucune donnée WHOIS disponible.';
     return res.json({ domain, raw });
   } catch (err) {
     return res.status(503).json({ error: 'Service WHOIS temporairement indisponible' });
@@ -1204,8 +1298,10 @@ app.get('/api/v1/check', requireApiKey, async (req, res) => {
     return res.status(400).json({ error: 'Nom de domaine invalide' });
   }
   try {
-    const whoisData = await whois(domain);
-    const result    = parseDomainAvailability(whoisData);
+    const result = await checkWhois(domain, INTERACTIVE);
+    if (result.status === 'unknown') {
+      return res.status(503).json({ error: 'Registre WHOIS temporairement indisponible, réessayez plus tard' });
+    }
     return res.json({
       domain,
       available:      result.available,
@@ -1226,9 +1322,9 @@ app.post('/api/v1/subscribe', requireApiKey, async (req, res) => {
   if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domain)) return res.status(400).json({ error: 'Domaine invalide' });
 
   try {
-    const whoisData = await whois(domain);
-    const { available } = parseDomainAvailability(whoisData);
-    if (available) return res.status(400).json({ error: 'Ce domaine est déjà disponible', available: true });
+    // "unknown" n'empêche pas l'abonnement : le cron déterminera le statut.
+    const { available } = await checkWhois(domain, INTERACTIVE);
+    if (available === true) return res.status(400).json({ error: 'Ce domaine est déjà disponible', available: true });
 
     await db.query(`
       INSERT INTO subscriptions (domain, email, active) VALUES ($1, $2, TRUE)
@@ -1256,189 +1352,232 @@ app.delete('/api/v1/unsubscribe', requireApiKey, async (req, res) => {
   }
 });
 
-// ─── Confirmation différée (suite) ─────────────────────────────────────────────
-async function confirmAvailability(domain) {
-  console.log(`🔁 [${new Date().toISOString()}] Confirmation différée pour ${domain}…`);
-  try {
-    const { rows: subs } = await db.query(
-      "SELECT email, COALESCE(lang,'fr') AS lang FROM subscriptions WHERE domain = $1 AND active = TRUE AND pending_confirmation_since IS NOT NULL",
-      [domain]
-    );
-    if (subs.length === 0) {
-      console.log(`  (plus rien en attente pour ${domain}, abandon)`);
-      return;
-    }
-
-    const whoisData = await whois(domain);
-    const { available, status } = parseDomainAvailability(whoisData);
-
-    if (available) {
-      console.log(`✅ ${domain} confirmé disponible après le délai de 10 minutes`);
-      for (const { email, lang } of subs) {
-        const l = normLang(lang);
-        try {
-          const settings = await getUserSettings(email);
-          if (settings.email_alerts_enabled) {
-            await sendAlertEmail(email, domain, l);
-            console.log(`  📧 Alerte envoyée à ${email}`);
-          } else {
-            console.log(`  🔕 Alertes mail désactivées pour ${email}, envoi ignoré`);
-          }
-        } catch (mailErr) {
-          console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
-        }
-        // Notification push (canal distinct des alertes e-mail) — ouvre "Mes alertes"
-        // filtré sur "Disponible".
-        await sendPushNotification(email, {
-          title: l === 'en' ? `🟢 ${domain} is available!` : `🟢 ${domain} est disponible !`,
-          body: l === 'en' ? 'This domain was just released!' : 'Super, ce domaine vient de se libérer !',
-          data: { type: 'domain_available', domain, screen: 'manage', filter: 'available' },
-        });
-      }
-      // On garde l'alerte ACTIVE pour continuer à surveiller le domaine : s'il est
-      // repris, on pourra envoyer la notification "Dommage". notified_at date la
-      // disponibilité (utilisé pour la mise en évidence "récente" côté client).
-      await db.query(
-        'UPDATE subscriptions SET last_status = $2, notified_at = NOW(), pending_confirmation_since = NULL WHERE domain = $1',
-        [domain, status]
-      );
-    } else {
-      console.log(`↩️  ${domain} a été repris avant la fin du délai de confirmation — alerte annulée (statut : ${status})`);
-      await db.query(
-        'UPDATE subscriptions SET last_status = $2, pending_confirmation_since = NULL WHERE domain = $1',
-        [domain, status]
-      );
-    }
-  } catch (err) {
-    console.error(`Erreur confirmation différée pour ${domain}:`, err.message);
-  }
-}
-
-function scheduleConfirmation(domain, delayMs = CONFIRMATION_DELAY_MS) {
-  setTimeout(() => { confirmAvailability(domain); }, delayMs);
-}
-
-// Rattrape, au démarrage du serveur, les confirmations différées qui auraient
-// été perdues lors d'un redémarrage (Railway redéploie régulièrement).
-async function recoverPendingConfirmations() {
-  try {
-    const { rows } = await db.query(
-      `SELECT DISTINCT domain, pending_confirmation_since FROM subscriptions
-       WHERE active = TRUE AND pending_confirmation_since IS NOT NULL`
-    );
-    if (rows.length === 0) return;
-
-    console.log(`🔁 ${rows.length} domaine(s) en attente de confirmation à reprendre après redémarrage`);
-    for (const { domain, pending_confirmation_since } of rows) {
-      const elapsed   = Date.now() - new Date(pending_confirmation_since).getTime();
-      const remaining = CONFIRMATION_DELAY_MS - elapsed;
-      if (remaining <= 0) {
-        console.log(`  ⏩ ${domain} : délai déjà écoulé, vérification immédiate`);
-        confirmAvailability(domain);
+// ─── Notification "disponible" (après confirmation) ────────────────────────────
+// notified_at est écrit pour chaque abonnement notifié, et n'est jamais remis à
+// NULL : il date le dernier envoi d'alerte "disponible". La mise en évidence
+// côté client s'appuie sur last_change_at.
+async function notifyAvailable(domain, subs) {
+  for (const { email, lang } of subs) {
+    const l = normLang(lang);
+    try {
+      const settings = await getUserSettings(email);
+      if (settings.email_alerts_enabled) {
+        await sendAlertEmail(email, domain, l);
+        console.log(`  📧 Alerte envoyée à ${email}`);
       } else {
-        console.log(`  ⏱️  ${domain} : reprogrammé dans ${Math.round(remaining / 1000)}s`);
-        scheduleConfirmation(domain, remaining);
+        console.log(`  🔕 Alertes mail désactivées pour ${email}, envoi ignoré`);
       }
+    } catch (mailErr) {
+      console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
     }
-  } catch (err) {
-    console.error('Erreur récupération des confirmations en attente:', err.message);
+    // Notification push (canal distinct des alertes e-mail) — ouvre "Mes alertes"
+    // filtré sur "Disponible".
+    await sendPushNotification(email, {
+      title: l === 'en' ? `🟢 ${domain} is available!` : `🟢 ${domain} est disponible !`,
+      body: l === 'en' ? 'This domain was just released!' : 'Super, ce domaine vient de se libérer !',
+      data: { type: 'domain_available', domain, screen: 'manage', filter: 'available' },
+    });
+    await db.query(
+      'UPDATE subscriptions SET notified_at = NOW() WHERE domain = $1 AND email = $2',
+      [domain, email]
+    );
   }
 }
 
-// ─── Cron job — vérification toutes les heures ─────────────────────────────────
-cron.schedule('0 * * * *', async () => {
-  console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
+// ─── Disjoncteur par TLD ───────────────────────────────────────────────────────
+// Dans un même run, si plus de 30 % des domaines d'un TLD basculent de "pris"
+// vers "disponible", OU si plus de 30 % reviennent "unknown", la source est
+// considérée en panne : aucun envoi ni aucune écriture pour ce TLD dans ce run,
+// log ERROR, et e-mail à ADMIN_ALERT_EMAIL s'il est configuré.
+// En dessous de BREAKER_MIN_SAMPLE domaines, un ratio n'a pas de sens (un seul
+// .io qui se libère ferait 100 %) : le disjoncteur ne s'applique pas.
+const BREAKER_THRESHOLD  = 0.30;
+const BREAKER_MIN_SAMPLE = 5;
 
-  let rows;
+async function notifyAdmin(subject, text) {
+  const to = (process.env.ADMIN_ALERT_EMAIL || '').trim();
+  if (!to) return;
   try {
-    const result = await db.query('SELECT DISTINCT domain FROM subscriptions WHERE active = TRUE');
-    rows = result.rows;
+    await resend.emails.send({ from: EMAIL_FROM, to, subject, text });
   } catch (err) {
-    console.error('Erreur lecture DB (cron):', err.message);
+    console.error('  ❌ Erreur envoi alerte admin :', err.message);
+  }
+}
+
+function evaluateBreakers(checks) {
+  const byTld = new Map();
+  for (const c of checks) {
+    const tld = tldOf(c.domain);
+    const s = byTld.get(tld) || { tld, total: 0, flips: 0, unknowns: 0 };
+    s.total++;
+    if (c.result.status === 'unknown') s.unknowns++;
+    else if (c.result.available && !c.wasAvailable) s.flips++;
+    byTld.set(tld, s);
+  }
+  const tripped = new Map();
+  for (const s of byTld.values()) {
+    if (s.total < BREAKER_MIN_SAMPLE) continue;
+    const flipRate = s.flips / s.total;
+    const unknownRate = s.unknowns / s.total;
+    if (flipRate > BREAKER_THRESHOLD || unknownRate > BREAKER_THRESHOLD) {
+      tripped.set(s.tld, { ...s, flipRate, unknownRate });
+    }
+  }
+  return tripped;
+}
+
+// ─── Traitement d'un domaine après lecture WHOIS ──────────────────────────────
+async function applyCheck(domain, result, subs) {
+  const { status } = result;
+  const wasAvailable = subs.some(s => s.last_status === 'available');
+  const pendingSince = subs.map(s => s.pending_confirmation_since).filter(Boolean)
+    .map(d => new Date(d).getTime()).sort((a, b) => a - b)[0];
+
+  // "unknown" : rien n'est écrit, rien n'est envoyé (réponse brute déjà loggée).
+  if (status === 'unknown') {
+    console.log(`❔ ${domain} statut inconnu (${result.reason}) — dernier statut connu conservé`);
     return;
   }
 
-  for (const { domain } of rows) {
-    try {
-      const whoisData = await whois(domain);
-      const { available, status } = parseDomainAvailability(whoisData);
-
-      const { rows: subs } = await db.query("SELECT email, last_status, pending_confirmation_since, COALESCE(lang,'fr') AS lang FROM subscriptions WHERE domain = $1 AND active = TRUE", [domain]);
-
-      if (available) {
-        const alreadyAvailable = subs.some(s => s.last_status === 'available');
-        const alreadyPending   = subs.some(s => s.pending_confirmation_since);
-        if (alreadyAvailable) {
-          // Déjà signalé disponible : on continue de surveiller (pour détecter
-          // une reprise) mais on ne ré-alerte pas.
-          console.log(`✅ ${domain} toujours disponible — déjà notifié, pas de nouvelle alerte`);
-        } else if (alreadyPending) {
-          console.log(`⏳ ${domain} déjà en attente de confirmation, pas de nouvelle vérification programmée`);
-        } else {
-          console.log(`🕒 ${domain} semble disponible — confirmation différée de 10 min avant alerte`);
-          await db.query('UPDATE subscriptions SET pending_confirmation_since = NOW() WHERE domain = $1 AND active = TRUE', [domain]);
-          scheduleConfirmation(domain);
-        }
-      } else {
-        console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
-        for (const { email, last_status, lang } of subs) {
-          const l = normLang(lang);
-          if (last_status === 'available') {
-            // « Dommage » : le domaine était disponible et vient d'être repris.
-            const settings = await getUserSettings(email);
-            if (settings.email_alerts_enabled) {
-              try {
-                await sendMissedEmail(email, domain, l);
-                console.log(`  📧 Notification "Dommage" (repris) envoyée à ${email}`);
-              } catch (mailErr) {
-                console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
-              }
-            }
-            await sendMissedPush(email, domain, l);
-          } else if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
-            const settings = await getUserSettings(email);
-            // La préférence "Période de grâce" pilote toute cette catégorie
-            // (grâce / rédemption / suppression), e-mail comme push.
-            if (settings.grace_alerts_enabled) {
-              if (settings.email_alerts_enabled) {
-                try {
-                  await sendStatusChangeEmail(email, domain, status, l);
-                  console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
-                } catch (mailErr) {
-                  console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
-                }
-              }
-              await sendStatusChangePush(email, domain, status, l);
-            } else {
-              console.log(`  🔕 Alertes de grâce/rédemption désactivées pour ${email}, envoi ignoré`);
-            }
-          }
-        }
-        // Si le domaine était disponible et vient d'être repris, on horodate la
-        // reprise (notified_at) pour la mise en évidence "flash rouge" côté client ;
-        // sinon on efface notified_at (le domaine n'est plus/ n'a jamais été dispo).
-        const wasAvailable = subs.some(s => s.last_status === 'available');
-        if (wasAvailable) {
-          await db.query('UPDATE subscriptions SET last_status = $2, notified_at = NOW(), pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
-        } else {
-          await db.query('UPDATE subscriptions SET last_status = $2, notified_at = NULL, pending_confirmation_since = NULL WHERE domain = $1', [domain, status]);
-        }
-      }
-
-      await new Promise(r => setTimeout(r, 1000));
-    } catch (err) {
-      console.error(`Erreur cron pour ${domain}:`, err.message);
+  if (result.available) {
+    if (wasAvailable) {
+      // Déjà signalé disponible : on continue de surveiller (pour détecter
+      // une reprise) mais on ne ré-alerte pas.
+      console.log(`✅ ${domain} toujours disponible — déjà notifié, pas de nouvelle alerte`);
+    } else if (!pendingSince) {
+      console.log(`🕒 ${domain} semble disponible — confirmation au prochain run (≥ 1 h) avant alerte`);
+      await db.query('UPDATE subscriptions SET pending_confirmation_since = NOW() WHERE domain = $1 AND active = TRUE', [domain]);
+    } else if (Date.now() - pendingSince < CONFIRMATION_DELAY_MS) {
+      console.log(`⏳ ${domain} en attente de confirmation (depuis ${Math.round((Date.now() - pendingSince) / 60000)} min)`);
+    } else {
+      console.log(`✅ ${domain} confirmé disponible (2e détection, ${Math.round((Date.now() - pendingSince) / 60000)} min après la 1re)`);
+      // On garde l'alerte ACTIVE pour continuer à surveiller le domaine : s'il est
+      // repris, on pourra envoyer la notification "Dommage".
+      await db.query(
+        "UPDATE subscriptions SET last_status = 'available', last_change_at = NOW(), pending_confirmation_since = NULL WHERE domain = $1",
+        [domain]
+      );
+      await notifyAvailable(domain, subs);
     }
+    return;
   }
 
-  console.log('✔️  Cron job terminé\n');
+  if (pendingSince) {
+    console.log(`↩️  ${domain} pris avant la fin du délai de confirmation — alerte annulée (statut : ${status})`);
+  } else {
+    console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
+  }
+  for (const { email, last_status, lang } of subs) {
+    const l = normLang(lang);
+    if (last_status === 'available') {
+      // « Dommage » : le domaine était disponible et vient d'être repris.
+      const settings = await getUserSettings(email);
+      if (settings.email_alerts_enabled) {
+        try {
+          await sendMissedEmail(email, domain, l);
+          console.log(`  📧 Notification "Dommage" (repris) envoyée à ${email}`);
+        } catch (mailErr) {
+          console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
+        }
+      }
+      await sendMissedPush(email, domain, l);
+    } else if (status !== last_status && ['gracePeriod', 'redemptionPeriod', 'pendingDelete'].includes(status)) {
+      const settings = await getUserSettings(email);
+      // La préférence "Période de grâce" pilote toute cette catégorie
+      // (grâce / rédemption / suppression), e-mail comme push.
+      if (settings.grace_alerts_enabled) {
+        if (settings.email_alerts_enabled) {
+          try {
+            await sendStatusChangeEmail(email, domain, status, l);
+            console.log(`  📧 Alerte de changement d'état (${status}) envoyée à ${email}`);
+          } catch (mailErr) {
+            console.error(`  ❌ Erreur envoi mail à ${email}:`, mailErr.message);
+          }
+        }
+        await sendStatusChangePush(email, domain, status, l);
+      } else {
+        console.log(`  🔕 Alertes de grâce/rédemption désactivées pour ${email}, envoi ignoré`);
+      }
+    }
+  }
+  // last_change_at date le changement de statut (mise en évidence côté client) ;
+  // notified_at n'est jamais touché ici.
+  await db.query(
+    `UPDATE subscriptions
+        SET last_status = $2,
+            last_change_at = CASE WHEN last_status IS DISTINCT FROM $2 THEN NOW() ELSE last_change_at END,
+            pending_confirmation_since = NULL
+      WHERE domain = $1`,
+    [domain, status]
+  );
+}
+
+// ─── Cron job — vérification toutes les heures ─────────────────────────────────
+// 1. Lecture WHOIS de tous les domaines, regroupés par TLD : en série au sein
+//    d'un TLD (file globale), en parallèle entre TLDs.
+// 2. Disjoncteur par TLD sur l'ensemble des résultats du run.
+// 3. Application (écritures + envois) pour les TLDs sains uniquement.
+let cronRunning = false;
+cron.schedule('0 * * * *', async () => {
+  if (cronRunning) {
+    console.warn('⚠️  Run précédent encore en cours — run ignoré');
+    return;
+  }
+  cronRunning = true;
+  console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
+  try {
+    let rows;
+    try {
+      const result = await db.query(
+        `SELECT domain, bool_or(last_status = 'available') AS was_available
+           FROM subscriptions WHERE active = TRUE
+          GROUP BY domain
+          ORDER BY split_part(domain, '.', array_length(string_to_array(domain, '.'), 1)), domain`
+      );
+      rows = result.rows;
+    } catch (err) {
+      console.error('Erreur lecture DB (cron):', err.message);
+      return;
+    }
+
+    const checks = await Promise.all(rows.map(async ({ domain, was_available }) => ({
+      domain,
+      wasAvailable: was_available === true,
+      result: await checkWhois(domain),   // jamais de cache ici
+    })));
+
+    const tripped = evaluateBreakers(checks);
+    for (const s of tripped.values()) {
+      const msg = `[DISJONCTEUR] .${s.tld} : ${s.flips}/${s.total} bascules pris→disponible ` +
+        `(${Math.round(s.flipRate * 100)} %), ${s.unknowns}/${s.total} unknown ` +
+        `(${Math.round(s.unknownRate * 100)} %) — seuil ${BREAKER_THRESHOLD * 100} %. ` +
+        `Envois et écritures suspendus pour .${s.tld} sur ce run.`;
+      console.error(`🛑 ${new Date().toISOString()} ${msg}`);
+      await notifyAdmin(`🛑 DoomName — disjoncteur .${s.tld} déclenché`, msg);
+    }
+
+    for (const { domain, result } of checks) {
+      if (tripped.has(tldOf(domain))) {
+        console.log(`🛑 ${domain} ignoré (disjoncteur .${tldOf(domain)}) — résultat brut : ${result.status}`);
+        continue;
+      }
+      try {
+        const { rows: subs } = await db.query("SELECT email, last_status, pending_confirmation_since, COALESCE(lang,'fr') AS lang FROM subscriptions WHERE domain = $1 AND active = TRUE", [domain]);
+        await applyCheck(domain, result, subs);
+      } catch (err) {
+        console.error(`Erreur cron pour ${domain}:`, err.message);
+      }
+    }
+  } finally {
+    cronRunning = false;
+    console.log('✔️  Cron job terminé\n');
+  }
 });
 
 // ─── Démarrage ─────────────────────────────────────────────────────────────────
 async function start() {
   await initDB();
   await ensureReviewToken();
-  await recoverPendingConfirmations();
   app.listen(port, () => {
     console.log(`🚀 DoomName en ligne sur http://localhost:${port}`);
     console.log(`   Cron job actif — vérification toutes les heures`);

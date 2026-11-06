@@ -56,6 +56,7 @@ npm start
 | `RESEND_API_KEY` | Clé API [Resend](https://resend.com) |
 | `EMAIL_FROM` | Adresse d'expédition des e-mails |
 | `APP_URL` | URL publique du site (utilisée dans les liens des e-mails) |
+| `ADMIN_ALERT_EMAIL` | Adresse qui reçoit un e-mail quand le disjoncteur WHOIS se déclenche (taux anormal de bascules « disponible » ou de réponses « unknown » sur un TLD). **Optionnel, mais sans cette variable le disjoncteur ne notifie personne** : il suspend les envois et écrit seulement une ligne `[DISJONCTEUR]` en ERROR dans les logs. |
 
 ## Déploiement
 

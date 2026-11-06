@@ -699,7 +699,8 @@
 
       const RECENT_MS = 10 * 60 * 1000;
       list.innerHTML = pageItems.map(sub => {
-        const recent = sub.notified_at && (Date.now() - new Date(sub.notified_at).getTime() < RECENT_MS);
+        const changedAt = sub.last_change_at || sub.notified_at;
+        const recent = changedAt && (Date.now() - new Date(changedAt).getTime() < RECENT_MS);
         const recentAvailable = recent && sub.last_status === 'available';
         const recentTaken     = recent && sub.last_status === 'taken';
         const flashClass = recentAvailable ? 'just-available' : recentTaken ? 'just-taken' : '';
