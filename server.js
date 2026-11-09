@@ -1528,6 +1528,52 @@ async function applyCheck(domain, result, subs) {
   }
 }
 
+// Un run du cron (corps extrait de cron.schedule pour pouvoir être testé).
+async function runCron() {
+  let rows;
+  try {
+    const result = await db.query(
+      `SELECT domain, bool_or(last_status = 'available') AS was_available
+         FROM subscriptions WHERE active = TRUE
+        GROUP BY domain
+        ORDER BY split_part(domain, '.', array_length(string_to_array(domain, '.'), 1)), domain`
+    );
+    rows = result.rows;
+  } catch (err) {
+    console.error('Erreur lecture DB (cron):', err.message);
+    return;
+  }
+
+  const checks = await Promise.all(rows.map(async ({ domain, was_available }) => ({
+    domain,
+    wasAvailable: was_available === true,
+    result: await checkWhois(domain),   // jamais de cache ici
+  })));
+
+  const tripped = evaluateBreakers(checks);
+  for (const s of tripped.values()) {
+    const msg = `[DISJONCTEUR] .${s.tld} : ${s.flips}/${s.total} bascules pris→disponible ` +
+      `(${Math.round(s.flipRate * 100)} %), ${s.unknowns}/${s.total} unknown ` +
+      `(${Math.round(s.unknownRate * 100)} %) — seuil ${BREAKER_THRESHOLD * 100} %. ` +
+      `Envois et écritures suspendus pour .${s.tld} sur ce run.`;
+    console.error(`🛑 ${new Date().toISOString()} ${msg}`);
+    await notifyAdmin(`disjoncteur:${s.tld}`, `🛑 DoomName — disjoncteur .${s.tld} déclenché`, msg);
+  }
+
+  for (const { domain, result } of checks) {
+    if (tripped.has(tldOf(domain))) {
+      console.log(`🛑 ${domain} ignoré (disjoncteur .${tldOf(domain)}) — résultat brut : ${result.status}`);
+      continue;
+    }
+    try {
+      const { rows: subs } = await db.query("SELECT email, last_status, pending_confirmation_since, COALESCE(lang,'fr') AS lang FROM subscriptions WHERE domain = $1 AND active = TRUE", [domain]);
+      await applyCheck(domain, result, subs);
+    } catch (err) {
+      console.error(`Erreur cron pour ${domain}:`, err.message);
+    }
+  }
+}
+
 // ─── Cron job — vérification toutes les heures ─────────────────────────────────
 // 1. Lecture WHOIS de tous les domaines, regroupés par TLD : en série au sein
 //    d'un TLD (file globale), en parallèle entre TLDs.
@@ -1542,48 +1588,7 @@ cron.schedule('0 * * * *', async () => {
   cronRunning = true;
   console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
   try {
-    let rows;
-    try {
-      const result = await db.query(
-        `SELECT domain, bool_or(last_status = 'available') AS was_available
-           FROM subscriptions WHERE active = TRUE
-          GROUP BY domain
-          ORDER BY split_part(domain, '.', array_length(string_to_array(domain, '.'), 1)), domain`
-      );
-      rows = result.rows;
-    } catch (err) {
-      console.error('Erreur lecture DB (cron):', err.message);
-      return;
-    }
-
-    const checks = await Promise.all(rows.map(async ({ domain, was_available }) => ({
-      domain,
-      wasAvailable: was_available === true,
-      result: await checkWhois(domain),   // jamais de cache ici
-    })));
-
-    const tripped = evaluateBreakers(checks);
-    for (const s of tripped.values()) {
-      const msg = `[DISJONCTEUR] .${s.tld} : ${s.flips}/${s.total} bascules pris→disponible ` +
-        `(${Math.round(s.flipRate * 100)} %), ${s.unknowns}/${s.total} unknown ` +
-        `(${Math.round(s.unknownRate * 100)} %) — seuil ${BREAKER_THRESHOLD * 100} %. ` +
-        `Envois et écritures suspendus pour .${s.tld} sur ce run.`;
-      console.error(`🛑 ${new Date().toISOString()} ${msg}`);
-      await notifyAdmin(`disjoncteur:${s.tld}`, `🛑 DoomName — disjoncteur .${s.tld} déclenché`, msg);
-    }
-
-    for (const { domain, result } of checks) {
-      if (tripped.has(tldOf(domain))) {
-        console.log(`🛑 ${domain} ignoré (disjoncteur .${tldOf(domain)}) — résultat brut : ${result.status}`);
-        continue;
-      }
-      try {
-        const { rows: subs } = await db.query("SELECT email, last_status, pending_confirmation_since, COALESCE(lang,'fr') AS lang FROM subscriptions WHERE domain = $1 AND active = TRUE", [domain]);
-        await applyCheck(domain, result, subs);
-      } catch (err) {
-        console.error(`Erreur cron pour ${domain}:`, err.message);
-      }
-    }
+    await runCron();
   } finally {
     cronRunning = false;
     console.log('✔️  Cron job terminé\n');
