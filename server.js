@@ -744,8 +744,8 @@ async function detectAndStoreStatus(domain, email) {
     if (status === 'unknown') return null;
     await db.query(
       `UPDATE subscriptions
-          SET last_status = $3,
-              last_change_at = CASE WHEN last_status IS DISTINCT FROM $3 THEN NOW() ELSE last_change_at END
+          SET last_status = $3::varchar,
+              last_change_at = CASE WHEN last_status IS DISTINCT FROM $3::varchar THEN NOW() ELSE last_change_at END
         WHERE domain = $1 AND email = $2`,
       [domain, email, status]
     );
@@ -1394,9 +1394,21 @@ async function notifyAvailable(domain, subs) {
 const BREAKER_THRESHOLD  = 0.30;
 const BREAKER_MIN_SAMPLE = 5;
 
-async function notifyAdmin(subject, text) {
+// Au plus un e-mail admin par clé (ici : par TLD) toutes les 6 h, pour qu'un
+// disjoncteur qui reste ouvert run après run n'envoie pas un e-mail par heure.
+// Fenêtre en mémoire : remise à zéro à chaque redémarrage, ce qui est voulu.
+const ADMIN_ALERT_SILENCE_MS = 6 * 60 * 60 * 1000;
+const lastAdminAlertAt = new Map();
+
+async function notifyAdmin(key, subject, text) {
   const to = (process.env.ADMIN_ALERT_EMAIL || '').trim();
   if (!to) return;
+  const last = lastAdminAlertAt.get(key);
+  if (last && Date.now() - last < ADMIN_ALERT_SILENCE_MS) {
+    console.log(`  🔕 Alerte admin "${key}" déjà envoyée il y a ${Math.round((Date.now() - last) / 60000)} min — silence`);
+    return;
+  }
+  lastAdminAlertAt.set(key, Date.now());
   try {
     await resend.emails.send({ from: EMAIL_FROM, to, subject, text });
   } catch (err) {
@@ -1467,6 +1479,20 @@ async function applyCheck(domain, result, subs) {
   } else {
     console.log(`⏳ ${domain} toujours pris (statut : ${status})`);
   }
+  // Statut écrit AVANT tout envoi : si l'écriture échoue, rien n'est envoyé et
+  // le run suivant ne peut pas renvoyer la même notification (régression du
+  // 06/11/2026 : écriture en échec après envoi → "Dommage" renvoyé chaque heure).
+  // last_change_at date le changement de statut (mise en évidence côté client) ;
+  // notified_at n'est jamais touché ici. Les envois ci-dessous s'appuient sur
+  // `subs`, lu avant cette écriture.
+  await db.query(
+    `UPDATE subscriptions
+        SET last_status = $2::varchar,
+            last_change_at = CASE WHEN last_status IS DISTINCT FROM $2::varchar THEN NOW() ELSE last_change_at END,
+            pending_confirmation_since = NULL
+      WHERE domain = $1`,
+    [domain, status]
+  );
   for (const { email, last_status, lang } of subs) {
     const l = normLang(lang);
     if (last_status === 'available') {
@@ -1500,16 +1526,6 @@ async function applyCheck(domain, result, subs) {
       }
     }
   }
-  // last_change_at date le changement de statut (mise en évidence côté client) ;
-  // notified_at n'est jamais touché ici.
-  await db.query(
-    `UPDATE subscriptions
-        SET last_status = $2,
-            last_change_at = CASE WHEN last_status IS DISTINCT FROM $2 THEN NOW() ELSE last_change_at END,
-            pending_confirmation_since = NULL
-      WHERE domain = $1`,
-    [domain, status]
-  );
 }
 
 // ─── Cron job — vérification toutes les heures ─────────────────────────────────
@@ -1553,7 +1569,7 @@ cron.schedule('0 * * * *', async () => {
         `(${Math.round(s.unknownRate * 100)} %) — seuil ${BREAKER_THRESHOLD * 100} %. ` +
         `Envois et écritures suspendus pour .${s.tld} sur ce run.`;
       console.error(`🛑 ${new Date().toISOString()} ${msg}`);
-      await notifyAdmin(`🛑 DoomName — disjoncteur .${s.tld} déclenché`, msg);
+      await notifyAdmin(`disjoncteur:${s.tld}`, `🛑 DoomName — disjoncteur .${s.tld} déclenché`, msg);
     }
 
     for (const { domain, result } of checks) {
