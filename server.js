@@ -48,6 +48,9 @@ async function initDB() {
   // Date du dernier changement de last_status (mise en évidence côté client).
   // notified_at, lui, ne date que les envois et n'est jamais remis à NULL.
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_change_at TIMESTAMPTZ`);
+  // Date depuis laquelle le WHOIS voit le domaine libre, que le disjoncteur
+  // l'ait cru ou non. Sert uniquement à distinguer les bascules nouvelles.
+  await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS whois_free_since TIMESTAMPTZ`);
   await db.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS lang VARCHAR(2) DEFAULT 'fr'`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS magic_links (
@@ -624,11 +627,14 @@ function classifyWhois(domain, raw) {
 
   // Statuts EPP de fin de vie (grace period / redemption / pending delete),
   // pour alerter avant la libération effective du domaine.
+  // autoRenewPeriod / renewPeriod ne sont PAS des statuts de fin de vie : ils
+  // signalent que le domaine vient d'être renouvelé (fenêtre d'annulation du
+  // registrar). Ils restent "taken" — auparavant classés gracePeriod à tort.
   const lower = text.toLowerCase();
   let status = 'taken';
   if (lower.includes('pendingdelete') || lower.includes('pending delete')) status = 'pendingDelete';
   else if (lower.includes('redemptionperiod') || lower.includes('redemption period')) status = 'redemptionPeriod';
-  else if (lower.includes('autorenewperiod') || lower.includes('auto-renew') || lower.includes('renewperiod') || lower.includes('grace period')) status = 'gracePeriod';
+  else if (lower.includes('grace period')) status = 'gracePeriod';
 
   const fields = parseWhoisFields(text);
   const expiryRaw =
@@ -1377,22 +1383,42 @@ async function notifyAvailable(domain, subs) {
       body: l === 'en' ? 'This domain was just released!' : 'Super, ce domaine vient de se libérer !',
       data: { type: 'domain_available', domain, screen: 'manage', filter: 'available' },
     });
-    await db.query(
-      'UPDATE subscriptions SET notified_at = NOW() WHERE domain = $1 AND email = $2',
-      [domain, email]
-    );
+    // Écriture par abonné, isolée : un échec ici ne doit pas priver les
+    // abonnés suivants de leur alerte (l'envoi a déjà eu lieu pour celui-ci).
+    try {
+      await db.query(
+        'UPDATE subscriptions SET notified_at = NOW() WHERE domain = $1 AND email = $2',
+        [domain, email]
+      );
+    } catch (dbErr) {
+      console.error(`  ❌ Erreur écriture notified_at pour ${email} (${domain}):`, dbErr.message);
+    }
   }
 }
 
 // ─── Disjoncteur par TLD ───────────────────────────────────────────────────────
-// Dans un même run, si plus de 30 % des domaines d'un TLD basculent de "pris"
-// vers "disponible", OU si plus de 30 % reviennent "unknown", la source est
-// considérée en panne : aucun envoi ni aucune écriture pour ce TLD dans ce run,
-// log ERROR, et e-mail à ADMIN_ALERT_EMAIL s'il est configuré.
-// En dessous de BREAKER_MIN_SAMPLE domaines, un ratio n'a pas de sens (un seul
-// .io qui se libère ferait 100 %) : le disjoncteur ne s'applique pas.
-const BREAKER_THRESHOLD  = 0.30;
-const BREAKER_MIN_SAMPLE = 5;
+// Une source en panne se reconnaît à une rafale de bascules pris→disponible
+// simultanées, ou à une avalanche d'"unknown". Trois règles, par TLD et par run :
+//  - rafale  : au moins 2 bascules NOUVELLES et plus de 30 % du TLD. Nouvelle =
+//    domaine pas encore vu libre (whois_free_since NULL). Un domaine réellement
+//    libéré n'est compté qu'une fois : sans ça, il restait "pris" en base,
+//    rebasculait à chaque run et bloquait le disjoncteur ouvert pour toujours
+//    (.io, 06/11/2026).
+//  - masse   : plus de 60 % du TLD en bascule, en ne comptant que les bascules
+//    nouvelles ou vues libres depuis moins de 6 h — panne durable. Au-delà de
+//    6 h, une panne de registre se voit par ailleurs, alors qu'un TLD dont la
+//    majorité des domaines est réellement libre resterait bloqué indéfiniment
+//    (pending_confirmation_since n'étant jamais écrit disjoncteur ouvert).
+//  - unknown : plus de 30 % du TLD en "unknown".
+// Déclenché : aucun envoi ni écriture (hors whois_free_since) pour ce TLD dans
+// ce run, log ERROR, e-mail à ADMIN_ALERT_EMAIL s'il est configuré.
+// En dessous de BREAKER_MIN_SAMPLE domaines, un ratio n'a pas de sens : le
+// disjoncteur ne s'applique pas.
+const BREAKER_THRESHOLD       = 0.30;  // rafale et unknown
+const BREAKER_MIN_NEW_FLIPS   = 2;
+const BREAKER_MASS_THRESHOLD  = 0.60;
+const BREAKER_MASS_WINDOW_MS  = 6 * 60 * 60 * 1000;
+const BREAKER_MIN_SAMPLE      = 5;
 
 // Au plus un e-mail admin par clé (ici : par TLD) toutes les 6 h, pour qu'un
 // disjoncteur qui reste ouvert run après run n'envoie pas un e-mail par heure.
@@ -1420,20 +1446,28 @@ function evaluateBreakers(checks) {
   const byTld = new Map();
   for (const c of checks) {
     const tld = tldOf(c.domain);
-    const s = byTld.get(tld) || { tld, total: 0, flips: 0, unknowns: 0 };
+    const s = byTld.get(tld) || { tld, total: 0, flips: 0, newFlips: 0, massFlips: 0, unknowns: 0 };
     s.total++;
     if (c.result.status === 'unknown') s.unknowns++;
-    else if (c.result.available && !c.wasAvailable) s.flips++;
+    else if (c.result.available && !c.wasAvailable) {
+      s.flips++;
+      if (!c.freeSince) s.newFlips++;
+      if (!c.freeSince || Date.now() - new Date(c.freeSince).getTime() < BREAKER_MASS_WINDOW_MS) s.massFlips++;
+    }
     byTld.set(tld, s);
   }
   const tripped = new Map();
   for (const s of byTld.values()) {
     if (s.total < BREAKER_MIN_SAMPLE) continue;
     const flipRate = s.flips / s.total;
+    const newFlipRate = s.newFlips / s.total;
+    const massFlipRate = s.massFlips / s.total;
     const unknownRate = s.unknowns / s.total;
-    if (flipRate > BREAKER_THRESHOLD || unknownRate > BREAKER_THRESHOLD) {
-      tripped.set(s.tld, { ...s, flipRate, unknownRate });
-    }
+    const rules = [];
+    if (s.newFlips >= BREAKER_MIN_NEW_FLIPS && newFlipRate > BREAKER_THRESHOLD) rules.push('rafale');
+    if (massFlipRate > BREAKER_MASS_THRESHOLD) rules.push('masse');
+    if (unknownRate > BREAKER_THRESHOLD) rules.push('unknown');
+    if (rules.length) tripped.set(s.tld, { ...s, flipRate, newFlipRate, massFlipRate, unknownRate, rules });
   }
   return tripped;
 }
@@ -1528,12 +1562,30 @@ async function applyCheck(domain, result, subs) {
   }
 }
 
-// Un run du cron (corps extrait de cron.schedule pour pouvoir être testé).
+// Mémorise ce que le WHOIS a vu, disjoncteur ouvert ou non : libre →
+// whois_free_since posé (s'il ne l'est pas déjà) ; pris → remis à NULL ;
+// unknown → rien (aucune information). Ne déclenche jamais d'envoi.
+async function recordWhoisObservation(domain, result) {
+  if (result.status === 'unknown') return;
+  if (result.available) {
+    await db.query('UPDATE subscriptions SET whois_free_since = COALESCE(whois_free_since, NOW()) WHERE domain = $1', [domain]);
+  } else {
+    await db.query('UPDATE subscriptions SET whois_free_since = NULL WHERE domain = $1 AND whois_free_since IS NOT NULL', [domain]);
+  }
+}
+
+// Un run du cron :
+// 1. Lecture WHOIS de tous les domaines, regroupés par TLD : en série au sein
+//    d'un TLD (file globale), en parallèle entre TLDs.
+// 2. Disjoncteur par TLD sur l'ensemble des résultats du run.
+// 3. whois_free_since mis à jour pour tous les domaines (même TLD disjoncté).
+// 4. Application (écritures + envois) pour les TLDs sains uniquement.
 async function runCron() {
   let rows;
   try {
     const result = await db.query(
-      `SELECT domain, bool_or(last_status = 'available') AS was_available
+      `SELECT domain, bool_or(last_status = 'available') AS was_available,
+              min(whois_free_since) AS free_since
          FROM subscriptions WHERE active = TRUE
         GROUP BY domain
         ORDER BY split_part(domain, '.', array_length(string_to_array(domain, '.'), 1)), domain`
@@ -1544,23 +1596,33 @@ async function runCron() {
     return;
   }
 
-  const checks = await Promise.all(rows.map(async ({ domain, was_available }) => ({
+  const checks = await Promise.all(rows.map(async ({ domain, was_available, free_since }) => ({
     domain,
     wasAvailable: was_available === true,
+    freeSince: free_since || null,
     result: await checkWhois(domain),   // jamais de cache ici
   })));
 
   const tripped = evaluateBreakers(checks);
   for (const s of tripped.values()) {
-    const msg = `[DISJONCTEUR] .${s.tld} : ${s.flips}/${s.total} bascules pris→disponible ` +
-      `(${Math.round(s.flipRate * 100)} %), ${s.unknowns}/${s.total} unknown ` +
-      `(${Math.round(s.unknownRate * 100)} %) — seuil ${BREAKER_THRESHOLD * 100} %. ` +
+    const msg = `[DISJONCTEUR] .${s.tld} (${s.rules.join(' + ')}) : ` +
+      `${s.newFlips}/${s.total} bascules nouvelles (${Math.round(s.newFlipRate * 100)} %), ` +
+      `${s.flips}/${s.total} bascules au total (${Math.round(s.flipRate * 100)} %), ` +
+      `${s.massFlips}/${s.total} de moins de 6 h (${Math.round(s.massFlipRate * 100)} %), ` +
+      `${s.unknowns}/${s.total} unknown (${Math.round(s.unknownRate * 100)} %) — ` +
+      `seuils : rafale ≥ ${BREAKER_MIN_NEW_FLIPS} et > ${BREAKER_THRESHOLD * 100} %, ` +
+      `masse > ${BREAKER_MASS_THRESHOLD * 100} % (< 6 h), unknown > ${BREAKER_THRESHOLD * 100} %. ` +
       `Envois et écritures suspendus pour .${s.tld} sur ce run.`;
     console.error(`🛑 ${new Date().toISOString()} ${msg}`);
     await notifyAdmin(`disjoncteur:${s.tld}`, `🛑 DoomName — disjoncteur .${s.tld} déclenché`, msg);
   }
 
   for (const { domain, result } of checks) {
+    try {
+      await recordWhoisObservation(domain, result);
+    } catch (err) {
+      console.error(`Erreur écriture whois_free_since pour ${domain}:`, err.message);
+    }
     if (tripped.has(tldOf(domain))) {
       console.log(`🛑 ${domain} ignoré (disjoncteur .${tldOf(domain)}) — résultat brut : ${result.status}`);
       continue;
@@ -1575,10 +1637,6 @@ async function runCron() {
 }
 
 // ─── Cron job — vérification toutes les heures ─────────────────────────────────
-// 1. Lecture WHOIS de tous les domaines, regroupés par TLD : en série au sein
-//    d'un TLD (file globale), en parallèle entre TLDs.
-// 2. Disjoncteur par TLD sur l'ensemble des résultats du run.
-// 3. Application (écritures + envois) pour les TLDs sains uniquement.
 let cronRunning = false;
 cron.schedule('0 * * * *', async () => {
   if (cronRunning) {

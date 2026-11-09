@@ -32,6 +32,11 @@ expect('fr pris autre domaine', st('google.fr', 'domain:      autre.fr\n'), 'unk
 expect('com libre', st('zz.com', 'No match for domain "ZZ.COM".\n'), 'available');
 expect('com not found générique', st('zz.com', 'Domain not found.'), 'unknown');
 expect('com pris', st('google.com', '   Domain Name: GOOGLE.COM\n   Registry Expiry Date: 2028-09-14T04:00:00Z\n'), 'taken');
+// autoRenewPeriod / renewPeriod : le domaine VIENT d'être renouvelé, il n'expire pas.
+expect('fr autoRenewPeriod (renouvellement récent) → pris', st('orange.fr', 'domain:      orange.fr\nstatus:      ACTIVE\nstatus:      autoRenewPeriod\n'), 'taken');
+expect('com autoRenewPeriod → pris', st('x.com', 'Domain Name: X.COM\nDomain Status: autoRenewPeriod https://icann.org/epp#autoRenewPeriod'), 'taken');
+expect('com renewPeriod → pris', st('x.com', 'Domain Name: X.COM\nDomain Status: renewPeriod https://icann.org/epp#renewPeriod'), 'taken');
+expect('com redemptionPeriod inchangé', st('x.com', 'Domain Name: X.COM\nDomain Status: redemptionPeriod'), 'redemptionPeriod');
 expect('com pendingDelete', st('x.com', 'Domain Name: X.COM\nDomain Status: pendingDelete'), 'pendingDelete');
 expect('io libre + mentions légales', st('zz.io', 'Domain not found.\r\n>>> Last update of WHOIS database: x <<<\r\n\r\nTerms of Use: maintenance periods. If too many queries are received'), 'available');
 expect('refus en tête + mentions', st('zz.io', 'Rate limit exceeded\r\n>>> Last update of WHOIS database: x <<<\r\nTerms of Use: ...'), 'unknown');
