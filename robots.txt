@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://doomname.com/sitemap.xml
+Sitemap: https://www.doomname.com/sitemap.xml
