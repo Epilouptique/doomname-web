@@ -155,7 +155,7 @@ async function createSession(res, email) {
 
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
 const resend = new Resend(process.env.RESEND_API_KEY);
-const SITE_URL = 'https://doomname.com';
+const SITE_URL = 'https://www.doomname.com';
 // Expéditeur unique et cohérent pour TOUS les envois (délivrabilité).
 const EMAIL_FROM = process.env.EMAIL_FROM || 'DoomName <noreply@alert.doomname.com>';
 
