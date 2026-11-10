@@ -239,7 +239,7 @@
       'col.need_p': 'The perfect domain is already taken? Most expired domains are never renewed — you just need to be there at the right moment.',
       'col.sol_h2': 'The solution',
       'col.sol_p': 'DoomName watches for you, 24/7. Email + push notification the moment it is released, with double-check anti-false-positives.',
-      'col.free_h2': 'Free &amp; practical',
+      'col.free_h2': 'Free & practical',
       'col.free_p': 'Free and open-source. No data resold. <a href="/developer.html">REST API &amp; webhooks</a> for developers.',
       'about.h2': 'Monitor a domain name\'s availability, for free',
       'about.p1': 'DoomName is a free service that continuously monitors the availability of the domain names you care about. Enter a domain: we query WHOIS servers in real time to know whether it is free, registered, or expiring. If it is taken, enable an alert and we will notify you automatically, by email and notification, as soon as it is released.',
