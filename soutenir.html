@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DoomName — Nous soutenir</title>
+  <meta name="description" content="DoomName est gratuit. Si le service vous est utile, un don aide à financer son hébergement." />
+  <link rel="canonical" href="https://doomname.com/soutenir.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="icon" href="doomname-icon.ico" sizes="any" />
+  <link rel="icon" href="doomname-icon-32.png" type="image/png" sizes="32x32" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#d97757" />
+  <link rel="stylesheet" href="/css/common.css" />
+  <script src="/i18n.js"></script>
+  <script src="/nav.js"></script>
+  <style>
+    header { max-width: 640px; }
+  </style>
+</head>
+<body>
+
+  <nav class="topnav">
+    <a id="nav-login" class="btn-login" href="/manage.html" data-i18n="header.login">Se connecter</a>
+    <a href="/soutenir.html" class="topnav-btn icon-expand" aria-label="Nous soutenir" data-i18n-title="support.nav">
+      <svg viewBox="0 0 16 16" fill="none"><path d="M8 13.5S2 10 2 5.8A3 3 0 0 1 8 4.5a3 3 0 0 1 6 1.3C14 10 8 13.5 8 13.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      <span class="lbl" data-i18n="support.nav">Nous soutenir</span>
+    </a>
+    <button id="nav-download" class="topnav-btn icon-expand" aria-label="Télécharger">
+      <svg viewBox="0 0 13 13" fill="none"><path d="M6.5 1v7M3.5 5.5l3 3 3-3M1 9.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="lbl" data-i18n="header.download">Télécharger</span>
+    </button>
+    <button id="lang-btn" class="topnav-btn" aria-label="Language / Langue">FR</button>
+    <button class="topnav-btn" onclick="toggleTheme()" id="theme-btn" aria-label="Basculer le thème">
+      <svg id="theme-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/>
+        <path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </nav>
+
+  <header>
+    <a href="/" class="logo">
+      <div class="logo-icon">
+        <img src="doomname-logo-light-50.png" class="logo-img logo-img-light" alt="DoomName">
+        <img src="doomname-logo-dark-50.png" class="logo-img logo-img-dark" alt="DoomName">
+      </div>
+      <span class="logo-text">DoomName</span>
+    </a>
+    <h1 data-i18n-html="support.h1">Nous <em>soutenir</em></h1>
+    <p class="tagline" data-i18n="support.tagline">DoomName est gratuit, et le restera. Si le service vous est utile, un don aide à payer son hébergement.</p>
+  </header>
+
+  <div class="card">
+    <div class="card-section">
+      <span class="section-tag" data-i18n="support.tag_donate">Faire un don</span>
+      <p class="sup-text" data-i18n="support.donate_p">Les vérifications WHOIS, la base de données et l'envoi des alertes tournent sur un serveur payant. Chaque contribution, même modeste, sert directement à le financer.</p>
+      <div class="sup-actions">
+        <a id="sup-paypal" class="btn btn-primary sup-btn" href="https://paypal.me/hugovialjaime" target="_blank" rel="noopener" data-i18n="support.paypal">Faire un don avec PayPal</a>
+        <a id="sup-kofi" class="btn btn-primary sup-btn" target="_blank" rel="noopener" aria-disabled="true">
+          <span data-i18n="support.kofi">M'offrir un café sur Ko-fi</span>
+          <span class="sup-soon" data-i18n="support.soon">bientôt</span>
+        </a>
+      </div>
+    </div>
+    <div class="card-section">
+      <span class="section-tag" data-i18n="support.tag_free">Sans dépenser</span>
+      <p class="sup-text" data-i18n="support.free_p">Parler de DoomName autour de vous, ou laisser un avis sur le Play Store, aide tout autant.</p>
+    </div>
+  </div>
+
+  <footer>
+    DoomName v1.0 — Développé par Hugo Vial-Jaime
+    — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
+    &nbsp;·&nbsp; <a href="/">Accueil</a>
+    &nbsp;·&nbsp; <a href="/cgv.html">CGV</a>
+  </footer>
+
+  <script>
+    // ─── Liens de don ────────────────────────────────────────────────────────
+    // À RENSEIGNER : URL de la page Ko-fi (ex. 'https://ko-fi.com/xxx').
+    // Tant qu'elle est vide, le bouton Ko-fi reste affiché mais désactivé
+    // (« bientôt »), sans lien.
+    const KOFI_URL   = '';
+    const PAYPAL_URL = 'https://paypal.me/hugovialjaime';
+
+    (function () {
+      document.getElementById('sup-paypal').href = PAYPAL_URL;
+      const kofi = document.getElementById('sup-kofi');
+      if (KOFI_URL) {
+        kofi.href = KOFI_URL;
+        kofi.removeAttribute('aria-disabled');
+        kofi.querySelector('.sup-soon').remove();
+      }
+    })();
+
+    function applyTheme(dark) {
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      const icon = document.getElementById('theme-icon');
+      if (dark) {
+        icon.innerHTML = '<path d="M8 3a5 5 0 1 0 5 5 5.5 5.5 0 0 1-5-5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>';
+      } else {
+        icon.innerHTML = '<circle cx="8" cy="8" r="3.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 1v1.5M8 13.5V15M1 8h1.5M13.5 8H15M3.05 3.05l1.06 1.06M11.89 11.89l1.06 1.06M3.05 12.95l1.06-1.06M11.89 4.11l1.06-1.06" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>';
+      }
+      localStorage.setItem('dw-theme', dark ? 'dark' : 'light');
+    }
+    function toggleTheme() { applyTheme(document.documentElement.getAttribute('data-theme') !== 'dark'); }
+    (function() {
+      const saved = localStorage.getItem('dw-theme');
+      const h = new Date().getHours();
+      applyTheme(saved ? saved === 'dark' : (h >= 20 || h < 7));
+    })();
+  </script>
+
+</body>
+</html>

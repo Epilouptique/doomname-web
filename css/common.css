@@ -330,3 +330,19 @@ footer a:hover { text-decoration: underline; }
   .topnav { top: 0.9rem; right: 1rem; gap: 6px; }
   header { margin-top: 2rem; }
 }
+
+/* ─── Page « Nous soutenir » ─────────────────────────────────────────────────── */
+a.topnav-btn { text-decoration: none; }
+/* Très petits écrans (≤ 340 px, ex. 280 px) : 5 contrôles dans la barre, on
+   resserre espacements et marges pour que « Se connecter » ne sorte pas à gauche. */
+@media (max-width: 340px) {
+  .topnav { gap: 4px; right: 0.6rem; }
+  .topnav-btn { padding: 0 7px; }
+  .topnav .btn-login { padding: 10px 11px; }
+}
+.sup-text { font-size: 0.86rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1rem; }
+.card-section .sup-text:last-child { margin-bottom: 0; }
+.sup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sup-btn { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.sup-btn[aria-disabled="true"] { opacity: 0.45; cursor: default; pointer-events: none; }
+.sup-soon { font-size: 0.72rem; font-weight: 400; opacity: 0.85; }

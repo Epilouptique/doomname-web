@@ -5,6 +5,17 @@
   const DICT = {
     fr: {
       'nav.lang': 'FR',
+      // Nous soutenir
+      'support.nav': 'Nous soutenir',
+      'support.h1': 'Nous <em>soutenir</em>',
+      'support.tagline': 'DoomName est gratuit, et le restera. Si le service vous est utile, un don aide à payer son hébergement.',
+      'support.tag_donate': 'Faire un don',
+      'support.donate_p': 'Les vérifications WHOIS, la base de données et l\'envoi des alertes tournent sur un serveur payant. Chaque contribution, même modeste, sert directement à le financer.',
+      'support.paypal': 'Faire un don avec PayPal',
+      'support.kofi': 'M\'offrir un café sur Ko-fi',
+      'support.soon': 'bientôt',
+      'support.tag_free': 'Sans dépenser',
+      'support.free_p': 'Parler de DoomName autour de vous, ou laisser un avis sur le Play Store, aide tout autant.',
       // Accueil
       'home.h1': 'Surveillance de <em>nom de domaine</em>',
       'home.subtitle': 'Vérifiez la disponibilité et soyez alerté dès qu\'un domaine se libère',
@@ -217,6 +228,17 @@
     },
     en: {
       'nav.lang': 'EN',
+      // Support us
+      'support.nav': 'Support us',
+      'support.h1': 'Support <em>us</em>',
+      'support.tagline': 'DoomName is free, and will stay free. If you find it useful, a donation helps pay for hosting.',
+      'support.tag_donate': 'Donate',
+      'support.donate_p': 'WHOIS checks, the database and alert delivery run on a paid server. Every contribution, however small, goes directly toward it.',
+      'support.paypal': 'Donate with PayPal',
+      'support.kofi': 'Buy me a coffee on Ko-fi',
+      'support.soon': 'soon',
+      'support.tag_free': 'Without spending',
+      'support.free_p': 'Telling others about DoomName, or leaving a review on the Play Store, helps just as much.',
       'home.h1': 'Domain name <em>monitoring</em>',
       'home.subtitle': 'Check availability and get alerted as soon as a domain is released',
       'home.tag_check': 'Check a domain',
