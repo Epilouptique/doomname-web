@@ -59,3 +59,38 @@
 - `/api/auth/logout` révoque le Bearer et le cookie ; l'app l'appelle avant
   d'effacer son stockage local. Les sessions expirées sont purgées par le
   cron horaire.
+
+## Transition Bearer des endpoints de gestion (11/11/2026)
+
+`/api/manage/*` et `/api/subscribe` font confiance à l'e-mail fourni dans la
+requête : quiconque connaît un e-mail peut lire ou modifier ses alertes.
+Correction en deux temps pour ne pas casser les clients en production.
+
+- **Phase 1 (en place) : mesure, aucune restriction.** Middleware
+  `app.use(['/api/manage', '/api/subscribe'], …)` en tête de `server.js` :
+  - Bearer valide → l'e-mail de la session remplace celui de la requête
+    (`req.query.email` et `req.body.email`) ; un e-mail différent est ignoré
+    et journalisé `[auth-bearer]`.
+  - Sinon → comportement inchangé, journalisé
+    `[auth-fallback] <MÉTHODE> <endpoint> (<origine>)`, origine parmi
+    `sans session` (app sans jeton = anciennes versions ou utilisateur pas
+    reconnecté), `bearer invalide` (session expirée ou révoquée),
+    `cookie web` (site).
+- **Phase 2 (à décider) : exiger l'authentification.** Dans le middleware,
+  remplacer le repli par un 401 quand il n'y a ni Bearer valide ni session
+  cookie. Ce qu'il faudra changer :
+  - le site (`manage.html`) n'envoie jamais de Bearer : le cookie doit être
+    accepté pour ces endpoints (`getSessionEmail(req)` sans `bearerOnly`),
+    et l'e-mail de la session doit y remplacer celui de la requête comme
+    pour le Bearer. SameSite=Lax couvre le CSRF tiers ;
+  - l'app doit envoyer `Authorization: Bearer` sur tous ses appels
+    `/api/manage/*` et `/api/subscribe` (aujourd'hui seule la suppression
+    de compte le fait) ;
+  - un utilisateur de l'app sans jeton (connecté avant la mise à jour) doit
+    être renvoyé vers la connexion sur 401, au lieu d'une liste vide ;
+  - `/api/subscribe` sans compte (modale e-mail de l'accueil) n'a pas de
+    session par nature : il faudra soit l'exclure, soit le faire passer par
+    une confirmation e-mail.
+- **La bascule dépend des logs `[auth-fallback]`** : ne durcir que lorsque la
+  part `sans session` est devenue négligeable. Les lignes `cookie web` ne
+  comptent pas comme clients non migrés.

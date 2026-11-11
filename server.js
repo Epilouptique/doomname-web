@@ -24,6 +24,37 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname)));
 
+// ─── Transition Bearer des endpoints de gestion (phase 1 : mesure) ─────────────
+// /api/manage/* et /api/subscribe. Voir RESUME_TECHNIQUE.md.
+//   • Bearer valide → l'e-mail de la session fait autorité : il remplace l'e-mail
+//     de la requête (query et corps). Un e-mail différent est ignoré et journalisé.
+//   • Sans Bearer valide → comportement inchangé (e-mail de la requête), journalisé
+//     [auth-fallback] pour mesurer la part de clients non migrés.
+// Aucune restriction ici : rien n'est refusé.
+app.use(['/api/manage', '/api/subscribe'], async (req, res, next) => {
+  const endpoint = `${req.method} ${req.baseUrl}${req.path === '/' ? '' : req.path}`;
+  let sessionEmail = null;
+  const hasBearer = !!bearerToken(req);
+  if (hasBearer) {
+    try { sessionEmail = await getSessionEmail(req, { bearerOnly: true }); }
+    catch (e) { console.error('getSessionEmail (gestion) :', e.message); }
+  }
+  if (sessionEmail) {
+    const provided = [req.query?.email, req.body?.email].filter(Boolean).map(e => String(e).toLowerCase());
+    if (provided.some(e => e !== sessionEmail)) {
+      console.warn(`[auth-bearer] ${endpoint} : e-mail fourni différent de la session, ignoré`);
+    }
+    req.query.email = sessionEmail;
+    if (req.body && typeof req.body === 'object') req.body.email = sessionEmail;
+    return next();
+  }
+  // Origine du repli, pour distinguer les clients : app sans jeton, Bearer
+  // invalide/expiré, ou site web (cookie, qui n'envoie jamais de Bearer).
+  const origin = hasBearer ? 'bearer invalide' : (req.cookies?.[SESSION_COOKIE] ? 'cookie web' : 'sans session');
+  console.log(`[auth-fallback] ${endpoint} (${origin})`);
+  return next();
+});
+
 // ─── Base de données PostgreSQL ────────────────────────────────────────────────
 const db = new Pool({
   connectionString: process.env.DATABASE_URL,
