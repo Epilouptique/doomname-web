@@ -28,8 +28,10 @@ app.use(express.static(path.join(__dirname)));
 // /api/manage/* et /api/subscribe. Voir RESUME_TECHNIQUE.md.
 //   • Bearer valide → l'e-mail de la session fait autorité : il remplace l'e-mail
 //     de la requête (query et corps). Un e-mail différent est ignoré et journalisé.
-//   • Sans Bearer valide → comportement inchangé (e-mail de la requête), journalisé
-//     [auth-fallback] pour mesurer la part de clients non migrés.
+//   • Sans Bearer valide → comportement inchangé (e-mail de la requête). Seul le
+//     signal utile à la phase 2 est journalisé [auth-fallback] : app sans jeton
+//     (« sans session ») et « bearer invalide ». Ni le site (cookie web, migrera
+//     autrement) ni /api/subscribe (abonnement sans compte, toujours en repli).
 // Aucune restriction ici : rien n'est refusé.
 app.use(['/api/manage', '/api/subscribe'], async (req, res, next) => {
   const endpoint = `${req.method} ${req.baseUrl}${req.path === '/' ? '' : req.path}`;
@@ -48,10 +50,9 @@ app.use(['/api/manage', '/api/subscribe'], async (req, res, next) => {
     if (req.body && typeof req.body === 'object') req.body.email = sessionEmail;
     return next();
   }
-  // Origine du repli, pour distinguer les clients : app sans jeton, Bearer
-  // invalide/expiré, ou site web (cookie, qui n'envoie jamais de Bearer).
-  const origin = hasBearer ? 'bearer invalide' : (req.cookies?.[SESSION_COOKIE] ? 'cookie web' : 'sans session');
-  console.log(`[auth-fallback] ${endpoint} (${origin})`);
+  if (req.baseUrl === '/api/subscribe') return next();       // hors mesure
+  if (!hasBearer && req.cookies?.[SESSION_COOKIE]) return next(); // site web : hors mesure
+  console.log(`[auth-fallback] ${endpoint} (${hasBearer ? 'bearer invalide' : 'sans session'})`);
   return next();
 });
 

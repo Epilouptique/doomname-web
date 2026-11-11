@@ -72,10 +72,17 @@ Correction en deux temps pour ne pas casser les clients en production.
     (`req.query.email` et `req.body.email`) ; un e-mail différent est ignoré
     et journalisé `[auth-bearer]`.
   - Sinon → comportement inchangé, journalisé
-    `[auth-fallback] <MÉTHODE> <endpoint> (<origine>)`, origine parmi
-    `sans session` (app sans jeton = anciennes versions ou utilisateur pas
-    reconnecté), `bearer invalide` (session expirée ou révoquée),
-    `cookie web` (site).
+    `[auth-fallback] <MÉTHODE> <endpoint> (<origine>)` UNIQUEMENT pour les
+    origines `sans session` (app sans jeton = anciennes versions ou
+    utilisateur pas reconnecté) et `bearer invalide` (session expirée ou
+    révoquée). Non journalisés : le site (cookie, migrera autrement) et
+    `/api/subscribe` (abonnement sans compte, toujours en repli : il
+    fausserait la mesure).
+  - **La phase 1 est mesurable** depuis que l'app envoie le Bearer sur tous
+    ses appels de gestion (`lib/api.ts` → `apiFetch`, dans DoomNameApp). Les
+    lignes `[auth-fallback]` restantes = clients non migrés.
+  - **`/api/subscribe` est hors mesure.** Sa protection en phase 2 se décide
+    à part (voir plus bas).
 - **Phase 2 (à décider) : exiger l'authentification.** Dans le middleware,
   remplacer le repli par un 401 quand il n'y a ni Bearer valide ni session
   cookie. Ce qu'il faudra changer :
@@ -83,14 +90,12 @@ Correction en deux temps pour ne pas casser les clients en production.
     accepté pour ces endpoints (`getSessionEmail(req)` sans `bearerOnly`),
     et l'e-mail de la session doit y remplacer celui de la requête comme
     pour le Bearer. SameSite=Lax couvre le CSRF tiers ;
-  - l'app doit envoyer `Authorization: Bearer` sur tous ses appels
-    `/api/manage/*` et `/api/subscribe` (aujourd'hui seule la suppression
-    de compte le fait) ;
   - un utilisateur de l'app sans jeton (connecté avant la mise à jour) doit
     être renvoyé vers la connexion sur 401, au lieu d'une liste vide ;
   - `/api/subscribe` sans compte (modale e-mail de l'accueil) n'a pas de
     session par nature : il faudra soit l'exclure, soit le faire passer par
     une confirmation e-mail.
 - **La bascule dépend des logs `[auth-fallback]`** : ne durcir que lorsque la
-  part `sans session` est devenue négligeable. Les lignes `cookie web` ne
-  comptent pas comme clients non migrés.
+  part `sans session` est devenue négligeable. Une hausse de
+  `bearer invalide` signale plutôt un problème de session (révocation,
+  expiration) qu'un client ancien.
