@@ -24,6 +24,38 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname)));
 
+// ─── Transition Bearer des endpoints de gestion (phase 1 : mesure) ─────────────
+// /api/manage/* et /api/subscribe. Voir RESUME_TECHNIQUE.md.
+//   • Bearer valide → l'e-mail de la session fait autorité : il remplace l'e-mail
+//     de la requête (query et corps). Un e-mail différent est ignoré et journalisé.
+//   • Sans Bearer valide → comportement inchangé (e-mail de la requête). Seul le
+//     signal utile à la phase 2 est journalisé [auth-fallback] : app sans jeton
+//     (« sans session ») et « bearer invalide ». Ni le site (cookie web, migrera
+//     autrement) ni /api/subscribe (abonnement sans compte, toujours en repli).
+// Aucune restriction ici : rien n'est refusé.
+app.use(['/api/manage', '/api/subscribe'], async (req, res, next) => {
+  const endpoint = `${req.method} ${req.baseUrl}${req.path === '/' ? '' : req.path}`;
+  let sessionEmail = null;
+  const hasBearer = !!bearerToken(req);
+  if (hasBearer) {
+    try { sessionEmail = await getSessionEmail(req, { bearerOnly: true }); }
+    catch (e) { console.error('getSessionEmail (gestion) :', e.message); }
+  }
+  if (sessionEmail) {
+    const provided = [req.query?.email, req.body?.email].filter(Boolean).map(e => String(e).toLowerCase());
+    if (provided.some(e => e !== sessionEmail)) {
+      console.warn(`[auth-bearer] ${endpoint} : e-mail fourni différent de la session, ignoré`);
+    }
+    req.query.email = sessionEmail;
+    if (req.body && typeof req.body === 'object') req.body.email = sessionEmail;
+    return next();
+  }
+  if (req.baseUrl === '/api/subscribe') return next();       // hors mesure
+  if (!hasBearer && req.cookies?.[SESSION_COOKIE]) return next(); // site web : hors mesure
+  console.log(`[auth-fallback] ${endpoint} (${hasBearer ? 'bearer invalide' : 'sans session'})`);
+  return next();
+});
+
 // ─── Base de données PostgreSQL ────────────────────────────────────────────────
 const db = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -84,6 +116,13 @@ async function initDB() {
       updated_at            TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+  // Sign in with Apple : identifiant stable (sub), refresh token (révocation à la
+  // suppression, exigée par Apple) et nom transmis UNE SEULE fois par Apple.
+  // UNIQUE crée l'index unique sur apple_sub.
+  await db.query(`ALTER TABLE user_settings
+    ADD COLUMN IF NOT EXISTS apple_sub VARCHAR(255) UNIQUE,
+    ADD COLUMN IF NOT EXISTS apple_refresh_token TEXT,
+    ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)`);
   await db.query(`
     CREATE TABLE IF NOT EXISTS push_tokens (
       token      VARCHAR(255) PRIMARY KEY,
@@ -151,6 +190,25 @@ async function createSession(res, email) {
     maxAge: SESSION_MS,
     path: '/',
   });
+  return token;
+}
+
+// Jeton porté par l'en-tête « Authorization: Bearer <jeton> » (app), ou null.
+function bearerToken(req) {
+  const auth = String(req.get('authorization') || '');
+  return auth.startsWith('Bearer ') ? (auth.slice(7).trim() || null) : null;
+}
+
+// Email de la session courante.
+//   bearerOnly = false (défaut, LECTURE) : Bearer, sinon cookie httpOnly (web).
+//   bearerOnly = true  (actions DESTRUCTRICES) : Bearer uniquement. Le cookie part
+//   automatiquement avec toute requête du site (ex. formulaire de cgv.html) : il
+//   ne doit jamais suffire à supprimer un compte. Voir RESUME_TECHNIQUE.md.
+async function getSessionEmail(req, { bearerOnly = false } = {}) {
+  const token = bearerToken(req) || (bearerOnly ? null : req.cookies?.[SESSION_COOKIE]);
+  if (!token) return null;
+  const { rows } = await db.query('SELECT email FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
+  return rows[0]?.email || null;
 }
 
 // ─── Service e-mail (Resend) ───────────────────────────────────────────────────
@@ -230,17 +288,43 @@ async function sendEmail(email, subject, innerHtml, opts = {}) {
     headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
   }
 
-  await resend.emails.send({
-    from: EMAIL_FROM,
-    to:   email,
-    subject,
-    html,
-    text,
-    ...(Object.keys(headers).length ? { headers } : {}),
-  });
+  // Resend v3 ne lève pas d'exception sur une erreur d'API : il renvoie { error }.
+  // Les adresses relais Apple (« Masquer mon adresse ») rejettent tout expéditeur
+  // non enregistré chez Apple → préfixe [apple-relay] pour ne pas confondre un
+  // rejet avec un bug d'alerte. Comportement inchangé : on ne lève pas sur { error }.
+  const relay = isAppleRelayEmail(email);
+  let result;
+  try {
+    result = await resend.emails.send({
+      from: EMAIL_FROM,
+      to:   email,
+      subject,
+      html,
+      text,
+      ...(Object.keys(headers).length ? { headers } : {}),
+    });
+  } catch (err) {
+    if (relay) console.error(`[apple-relay] Échec d'envoi vers ${email} (${subject}) :`, err.message);
+    throw err;
+  }
+  if (result?.error) {
+    const msg = result.error.message || JSON.stringify(result.error);
+    if (relay) console.error(`[apple-relay] Envoi rejeté vers ${email} (${subject}) : ${msg} — expéditeur ${EMAIL_FROM} enregistré chez Apple ?`);
+    else console.error(`❌ Envoi e-mail rejeté vers ${email} (${subject}) : ${msg}`);
+  }
 }
 
+function isAppleRelayEmail(e) {
+  return /@privaterelay\.appleid\.com$/i.test(String(e || '').trim());
+}
+
+// Adresse « système » : domaines trackés par une plateforme partenaire
+// (labonnealerte via /api/internal/track). Pas d'utilisateur réel → aucun e-mail.
+const PLATFORM_EMAIL = 'platform@labonnealerte.internal';
+function isPlatformEmail(e) { return String(e || '').toLowerCase() === PLATFORM_EMAIL; }
+
 async function sendAlertEmail(email, domain, lang = 'fr') {
+  if (isPlatformEmail(email)) return; // ligne système : jamais d'e-mail
   const en = lang === 'en';
   const box = `<div style="background:#f0faf5;border-radius:8px;padding:1rem 1.5rem;margin:1.5rem 0"><strong style="font-size:1.3rem;font-family:monospace">${domain}</strong></div>`;
   const subject = en ? `🟢 ${domain} is available` : `🟢 ${domain} est disponible`;
@@ -339,6 +423,7 @@ async function sendWebPush(tokens, { title, body, data }) {
 }
 
 async function sendPushNotification(email, payload) {
+  if (isPlatformEmail(email)) return; // ligne système : pas de push
   let rows;
   try {
     ({ rows } = await db.query('SELECT token, platform FROM push_tokens WHERE email = $1', [email.toLowerCase()]));
@@ -376,6 +461,7 @@ const STATUS_LABELS = {
 function statusLabel(status, lang) { return STATUS_LABELS[status]?.[lang === 'en' ? 'en' : 'fr']; }
 
 async function sendStatusChangeEmail(email, domain, status, lang = 'fr') {
+  if (isPlatformEmail(email)) return; // ligne système : jamais d'e-mail
   const info = statusLabel(status, lang);
   if (!info) return;
   const en = lang === 'en';
@@ -735,6 +821,87 @@ app.get('/api/check', async (req, res) => {
   return res.json({ available, status, expiry });
 });
 
+// ─── Manifeste OpenAlert (standard labonnealerte.fr) ───────────────────────────
+// GET /alert.json                  → manifeste broadcast (source globale, inactif :
+//                                     une alerte DoomName n'a de sens que par domaine).
+// GET /alert.json?domaine=x.fr      → manifeste évalué pour ce domaine, à partir de
+//                                     l'état connu en base (maintenu par le cron).
+// Léger et déterministe : une seule lecture indexée, jamais de WHOIS ni de 500.
+// Conforme à OPENALERT.md v2 : le champ `params` déclare le schéma paramétré.
+const OA_DOMAIN_RE = /^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/;
+const OA_PARAMS = [{ key: 'domaine', label: 'Nom de domaine', type: 'string', multiple: true, required: true }];
+
+app.get('/alert.json', async (req, res) => {
+  const base = {
+    id: 'doomname', name: 'DoomName', url: 'https://doomname.com',
+    checked_at: new Date().toISOString(), params: OA_PARAMS,
+  };
+  const inactive = (extra = {}) => res.json(Object.assign(
+    { ...base, state: 'inactive', since: null, until: null, message: null }, extra));
+
+  const raw = req.query.domaine;
+  if (raw == null || raw === '') return inactive();               // broadcast : inactif neutre
+
+  const domain = String(raw).toLowerCase().trim();
+  if (!OA_DOMAIN_RE.test(domain)) return inactive();             // paramètre mal formé : réponse propre
+
+  try {
+    const { rows } = await db.query(
+      `SELECT bool_or(last_status = 'available') AS available, max(last_change_at) AS last_change_at
+         FROM subscriptions WHERE domain = $1`,
+      [domain]
+    );
+    const r = rows[0] || {};
+    const url = 'https://doomname.com/?domain=' + encodeURIComponent(domain);
+    // Domaine inconnu en base (available = null) ou non disponible → inactif neutre.
+    if (r.available === true) {
+      return res.json({
+        ...base, state: 'active',
+        since: r.last_change_at ? new Date(r.last_change_at).toISOString() : null,
+        until: null, message: `🟢 ${domain} est disponible`, url,
+      });
+    }
+    return inactive({ url });
+  } catch (err) {
+    console.error('Erreur /alert.json :', err.message);
+    return inactive(); // jamais de 500 : ne casse pas le poller labonnealerte
+  }
+});
+
+// ─── Tracking interne (plateforme partenaire) ─────────────────────────────────
+// POST /api/internal/track { domaine } — protégé par un secret partagé
+// (DOOMNAME_INTERNAL_KEY). Fait entrer un domaine dans le cron SANS utilisateur
+// ni e-mail (ligne système). Idempotent. Utilisé par labonnealerte quand un
+// abonnement paramétré DoomName est créé, pour que le domaine soit réellement
+// surveillé même s'il n'est suivi que depuis le kiosque.
+app.post('/api/internal/track', async (req, res) => {
+  const key = (process.env.DOOMNAME_INTERNAL_KEY || '').trim();
+  if (!key) return res.status(503).json({ error: 'internal tracking disabled' });
+  const provided = String(req.get('x-internal-key') || '');
+  const a = Buffer.from(provided);
+  const b = Buffer.from(key);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  const domaine = String((req.body && req.body.domaine) || '').toLowerCase().trim();
+  if (!/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z]{2,})+$/.test(domaine)) {
+    return res.status(400).json({ error: 'domaine invalide' });
+  }
+  try {
+    await db.query(
+      `INSERT INTO subscriptions (domain, email, active) VALUES ($1, $2, TRUE)
+       ON CONFLICT (domain, email) DO UPDATE SET active = TRUE`,
+      [domaine, PLATFORM_EMAIL]
+    );
+    // Détection immédiate du statut (jamais d'e-mail) pour que /alert.json soit à jour vite.
+    detectAndStoreStatus(domaine, PLATFORM_EMAIL).catch(() => {});
+    return res.json({ ok: true, domaine });
+  } catch (err) {
+    console.error('Erreur /api/internal/track :', err.message);
+    return res.status(500).json({ error: 'server error' });
+  }
+});
+
 // Détecte immédiatement le statut WHOIS d'un domaine à l'ajout et l'enregistre,
 // sans attendre le cron horaire. Si le domaine est déjà disponible, on le marque
 // 'available' (+ last_change_at) pour qu'il apparaisse aussitôt dans le filtre
@@ -827,9 +994,10 @@ app.get('/api/auth/verify', async (req, res) => {
 
     // Ouvre une session persistante (cookie httpOnly) pour le web — évite de
     // redemander un magic link à chaque visite. Sans effet néfaste pour l'app.
-    try { await createSession(res, rows[0].email); } catch (e) { console.error('createSession:', e.message); }
+    let sessionToken = null;
+    try { sessionToken = await createSession(res, rows[0].email); } catch (e) { console.error('createSession:', e.message); }
 
-    return res.json({ success: true, email: rows[0].email });
+    return res.json({ success: true, email: rows[0].email, sessionToken });
   } catch (err) {
     console.error('Erreur verify token:', err.message);
     return res.status(500).json({ error: 'Erreur serveur' });
@@ -850,10 +1018,11 @@ app.get('/api/auth/session', async (req, res) => {
   }
 });
 
-// Déconnexion : révoque la session en base et efface le cookie.
+// Déconnexion : révoque en base la session du Bearer (app) et celle du cookie
+// (web), puis efface le cookie.
 app.post('/api/auth/logout', async (req, res) => {
-  const token = req.cookies?.[SESSION_COOKIE];
-  try { if (token) await db.query('DELETE FROM sessions WHERE token = $1', [token]); } catch {}
+  const tokens = [bearerToken(req), req.cookies?.[SESSION_COOKIE]].filter(Boolean);
+  try { if (tokens.length) await db.query('DELETE FROM sessions WHERE token = ANY($1)', [tokens]); } catch {}
   res.clearCookie(SESSION_COOKIE, { path: '/' });
   return res.json({ success: true });
 });
@@ -897,12 +1066,172 @@ app.post('/api/auth/google', async (req, res) => {
       return res.status(401).json({ error: 'E-mail Google non vérifié' });
     }
     const email = payload.email.toLowerCase();
-    try { await createSession(res, email); } catch (e) { console.error('createSession(google):', e.message); }
+    let sessionToken = null;
+    try { sessionToken = await createSession(res, email); } catch (e) { console.error('createSession(google):', e.message); }
     console.log(`🔐 Connexion Google : ${email}`);
-    return res.json({ success: true, email });
+    return res.json({ success: true, email, sessionToken });
   } catch (err) {
     console.error('Erreur auth Google:', err.message);
     return res.status(401).json({ error: 'Jeton Google invalide' });
+  }
+});
+
+// ─── Sign in with Apple ────────────────────────────────────────────────────────
+// Vérification de signature et client secret ES256 faits avec le module crypto
+// natif de Node (JWK → KeyObject) : aucune dépendance ajoutée.
+// Identité : le `sub` Apple (stable), PAS l'email, qui peut être un relais
+// modifiable. Le nom et l'email ne sont envoyés par Apple qu'à la PREMIÈRE
+// autorisation : on les persiste immédiatement.
+const APPLE_ISSUER    = 'https://appleid.apple.com';
+const APPLE_BUNDLE_ID = 'fr.dahuconcept.doomname';
+const APPLE_ENV = ['APPLE_CLIENT_ID', 'APPLE_TEAM_ID', 'APPLE_KEY_ID', 'APPLE_PRIVATE_KEY'];
+function appleConfigured() { return APPLE_ENV.every(k => (process.env[k] || '').trim()); }
+
+const b64url = buf => Buffer.from(buf).toString('base64url');
+function decodeJwtPart(part) { return JSON.parse(Buffer.from(part, 'base64url').toString('utf8')); }
+
+// Clés publiques Apple en cache 24 h ; rechargées si un `kid` inconnu apparaît.
+let appleKeysCache = { keys: null, at: 0 };
+async function getApplePublicKey(kid) {
+  const fresh = appleKeysCache.keys && Date.now() - appleKeysCache.at < 24 * 3600 * 1000;
+  let jwk = fresh ? appleKeysCache.keys.find(k => k.kid === kid) : null;
+  if (!jwk) {
+    const r = await fetch(`${APPLE_ISSUER}/auth/keys`);
+    if (!r.ok) throw new Error(`apple keys HTTP ${r.status}`);
+    const { keys } = await r.json();
+    appleKeysCache = { keys, at: Date.now() };
+    jwk = keys.find(k => k.kid === kid);
+  }
+  if (!jwk) throw new Error('kid Apple inconnu');
+  return crypto.createPublicKey({ key: jwk, format: 'jwk' });
+}
+
+async function verifyAppleIdentityToken(idToken) {
+  const parts = String(idToken || '').split('.');
+  if (parts.length !== 3) throw new Error('jeton mal formé');
+  const header = decodeJwtPart(parts[0]);
+  const data = Buffer.from(`${parts[0]}.${parts[1]}`);
+  const sig  = Buffer.from(parts[2], 'base64url');
+  // Les clés publiées par Apple sont RSA : identity token en RS256. ES256 est
+  // accepté aussi ; tout autre alg (dont « none ») est refusé.
+  let ok;
+  if (header.alg === 'RS256') {
+    ok = crypto.verify('sha256', data, await getApplePublicKey(header.kid), sig);
+  } else if (header.alg === 'ES256') {
+    ok = crypto.verify('sha256', data, { key: await getApplePublicKey(header.kid), dsaEncoding: 'ieee-p1363' }, sig);
+  } else {
+    throw new Error(`alg non supporté : ${header.alg}`);
+  }
+  if (!ok) throw new Error('signature invalide');
+  const p = decodeJwtPart(parts[1]);
+  if (p.iss !== APPLE_ISSUER) throw new Error('iss invalide');
+  const aud = Array.isArray(p.aud) ? p.aud : [p.aud];
+  if (!aud.includes(APPLE_BUNDLE_ID)) throw new Error('aud invalide');
+  if (!p.exp || p.exp * 1000 < Date.now()) throw new Error('jeton expiré');
+  if (!p.sub) throw new Error('sub manquant');
+  return p;
+}
+
+// Client secret : JWT ES256 signé avec la clé .p8 (durée de vie courte : 5 min).
+function appleClientSecret() {
+  const now = Math.floor(Date.now() / 1000);
+  const header  = { alg: 'ES256', kid: process.env.APPLE_KEY_ID.trim() };
+  const payload = { iss: process.env.APPLE_TEAM_ID.trim(), iat: now, exp: now + 300, aud: APPLE_ISSUER, sub: process.env.APPLE_CLIENT_ID.trim() };
+  const input = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
+  // Les variables d'env stockent souvent les retours à la ligne en « \n » littéraux.
+  const pem = process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  const sig = crypto.sign('sha256', Buffer.from(input), { key: pem, dsaEncoding: 'ieee-p1363' });
+  return `${input}.${b64url(sig)}`;
+}
+
+// Échange l'authorizationCode contre un refresh token (nécessaire à la révocation).
+async function exchangeAppleCode(code) {
+  const r = await fetch(`${APPLE_ISSUER}/auth/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: process.env.APPLE_CLIENT_ID.trim(), client_secret: appleClientSecret(),
+      code, grant_type: 'authorization_code',
+    }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data.refresh_token || null;
+}
+
+// Révocation exigée par Apple à la suppression du compte. Neutralisée (no-op)
+// si la configuration Apple est absente ou si aucun jeton n'est connu.
+async function revokeAppleToken(refreshToken) {
+  if (!refreshToken) return false;
+  if (!appleConfigured()) { console.warn('⚠️  Révocation Apple ignorée : variables APPLE_* absentes'); return false; }
+  try {
+    const r = await fetch(`${APPLE_ISSUER}/auth/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.APPLE_CLIENT_ID.trim(), client_secret: appleClientSecret(),
+        token: refreshToken, token_type_hint: 'refresh_token',
+      }),
+    });
+    if (!r.ok) { console.error(`❌ Révocation Apple HTTP ${r.status}`); return false; }
+    return true;
+  } catch (err) {
+    console.error('❌ Révocation Apple :', err.message);
+    return false;
+  }
+}
+
+app.post('/api/auth/apple', async (req, res) => {
+  if (!appleConfigured()) return res.status(503).json({ error: 'Sign in with Apple non configuré sur ce serveur' });
+  const { identityToken, authorizationCode, fullName } = req.body || {};
+  if (!identityToken) return res.status(400).json({ error: 'identityToken manquant' });
+
+  let payload;
+  try { payload = await verifyAppleIdentityToken(identityToken); }
+  catch (err) {
+    console.error('Erreur jeton Apple:', err.message);
+    return res.status(401).json({ error: 'Jeton Apple invalide' });
+  }
+  const sub = payload.sub;
+  // L'email retenu est celui du jeton signé, jamais celui envoyé par le client
+  // (le champ `email` du corps n'est pas utilisé pour l'identité).
+  const tokenEmail = payload.email && (payload.email_verified === true || payload.email_verified === 'true')
+    ? String(payload.email).toLowerCase() : null;
+  const name = typeof fullName === 'string' ? (fullName.trim().slice(0, 255) || null) : null;
+
+  try {
+    let email;
+    const known = await db.query('SELECT email FROM user_settings WHERE apple_sub = $1', [sub]);
+    if (known.rows.length) {
+      // 1. sub connu → ouverture de session sur ce compte.
+      email = known.rows[0].email;
+      if (name) await db.query('UPDATE user_settings SET display_name = COALESCE(display_name, $2) WHERE email = $1', [email, name]);
+    } else {
+      if (!tokenEmail) return res.status(400).json({ error: 'E-mail Apple indisponible' });
+      email = tokenEmail;
+      // 2. compte existant pour cet email → rattachement du sub ; 3. sinon création.
+      // Les deux cas aboutissent à la même ligne user_settings (clé = email).
+      await db.query(`
+        INSERT INTO user_settings (email, apple_sub, display_name) VALUES ($1, $2, $3)
+        ON CONFLICT (email) DO UPDATE SET apple_sub = $2, display_name = COALESCE(user_settings.display_name, $3)
+      `, [email, sub, name]);
+    }
+
+    // Refresh token pour la révocation future : best effort, n'empêche pas la connexion.
+    if (authorizationCode) {
+      try {
+        const rt = await exchangeAppleCode(authorizationCode);
+        if (rt) await db.query('UPDATE user_settings SET apple_refresh_token = $2 WHERE email = $1', [email, rt]);
+      } catch (e) { console.error('Échange code Apple :', e.message); }
+    }
+
+    let sessionToken = null;
+    try { sessionToken = await createSession(res, email); } catch (e) { console.error('createSession(apple):', e.message); }
+    console.log(`🔐 Connexion Apple : ${email}${isAppleRelayEmail(email) ? ' [apple-relay]' : ''}`);
+    return res.json({ success: true, email, sessionToken });
+  } catch (err) {
+    console.error('Erreur auth Apple:', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -1196,7 +1525,43 @@ app.delete('/api/manage/push-token', async (req, res) => {
 });
 
 // ─── Suppression de compte ──────────────────────────────────────────────────────
+// Suppression effective d'un compte (toutes les tables liées à l'email).
+// Révoque d'abord le jeton Apple éventuel (exigence Apple, guideline 5.1.1(v)).
+async function deleteAccount(email) {
+  try {
+    const { rows } = await db.query('SELECT apple_refresh_token FROM user_settings WHERE email = $1', [email]);
+    if (rows[0]?.apple_refresh_token) await revokeAppleToken(rows[0].apple_refresh_token);
+  } catch (e) { console.error('Lecture jeton Apple :', e.message); }
+  await db.query('DELETE FROM subscriptions WHERE email = $1', [email]);
+  await db.query('DELETE FROM api_keys WHERE email = $1', [email]);
+  await db.query('DELETE FROM user_settings WHERE email = $1', [email]);
+  await db.query('DELETE FROM push_tokens WHERE email = $1', [email]);
+  await db.query('DELETE FROM sessions WHERE email = $1', [email]);
+  // Purge tous les magic links de ce compte (dont les liens de suppression 7j
+  // encore valides générés dans les footers d'e-mails).
+  await db.query('DELETE FROM magic_links WHERE email = $1', [email]);
+  console.log(`🗑️  Compte supprimé : ${email}`);
+}
+
+// Avec un Bearer valide (app) : suppression IMMÉDIATE du seul compte de cette
+// session (la confirmation a lieu côté client) ; l'email du corps est ignoré.
+// Sans Bearer, MÊME avec un cookie de session : flux par e-mail de confirmation.
 app.post('/api/account/delete-request', async (req, res) => {
+  let sessionEmail = null;
+  try { sessionEmail = await getSessionEmail(req, { bearerOnly: true }); } catch (e) { console.error('getSessionEmail:', e.message); }
+  if (sessionEmail) {
+    try {
+      await deleteAccount(sessionEmail);
+      res.clearCookie(SESSION_COOKIE, { path: '/' });
+      return res.json({ success: true, deleted: true });
+    } catch (err) {
+      console.error('Erreur suppression authentifiée:', err.message);
+      return res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+  // Jeton fourni mais invalide/expiré : on ne retombe pas silencieusement sur l'email.
+  if (req.get('authorization')) return res.status(401).json({ error: 'Session invalide ou expirée' });
+
   const { email } = req.body;
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Adresse e-mail invalide' });
 
@@ -1248,17 +1613,7 @@ app.get('/api/account/confirm-delete', async (req, res) => {
       return res.status(401).send(`<!DOCTYPE html><html lang="fr"><body style="font-family:sans-serif;text-align:center;padding:4rem 1rem"><h2>Lien invalide ou expiré</h2><p>Ce lien de suppression n'est plus valable.</p></body></html>`);
     }
 
-    const { email } = rows[0];
-    await db.query('DELETE FROM subscriptions WHERE email = $1', [email]);
-    await db.query('DELETE FROM api_keys WHERE email = $1', [email]);
-    await db.query('DELETE FROM user_settings WHERE email = $1', [email]);
-    await db.query('DELETE FROM push_tokens WHERE email = $1', [email]);
-    await db.query('DELETE FROM sessions WHERE email = $1', [email]);
-    // Purge tous les magic links de ce compte (dont les liens de suppression 7j
-    // encore valides générés dans les footers d'e-mails).
-    await db.query('DELETE FROM magic_links WHERE email = $1', [email]);
-
-    console.log(`🗑️  Compte supprimé : ${email}`);
+    await deleteAccount(rows[0].email);
     return res.send(`<!DOCTYPE html><html lang="fr"><body style="font-family:sans-serif;text-align:center;padding:4rem 1rem"><h2>Compte supprimé</h2><p>Toutes vos surveillances de domaines ont été supprimées.</p></body></html>`);
   } catch (err) {
     console.error('Erreur confirm-delete:', err.message);
@@ -1645,6 +2000,12 @@ cron.schedule('0 * * * *', async () => {
   }
   cronRunning = true;
   console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
+  // Purge des sessions expirées, indépendante du run WHOIS : un échec ici ne
+  // doit pas l'empêcher.
+  try {
+    const { rowCount } = await db.query('DELETE FROM sessions WHERE expires_at < NOW()');
+    if (rowCount) console.log(`🧹 ${rowCount} session(s) expirée(s) purgée(s)`);
+  } catch (e) { console.error('Purge sessions :', e.message); }
   try {
     await runCron();
   } finally {
