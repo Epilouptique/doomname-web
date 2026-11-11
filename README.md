@@ -9,9 +9,9 @@ Site : [doomname.com](https://www.doomname.com)
 - **Vérification WHOIS** en temps réel, avec cache 60s pour éviter le rate-limiting des registrars
 - **Détection des statuts de fin de vie** d'un domaine (grâce, rédemption, suppression imminente) en plus de disponible/pris, avec e-mail dédié dès qu'un domaine surveillé change d'état
 - **Confirmation différée de 10 minutes** avant d'envoyer l'alerte "disponible" : certains domaines à forte valeur sont recapturés en quelques secondes par des bots de drop-catching ; le domaine est revérifié 10 min plus tard avant de notifier, sans changer la fréquence du cron principal (1h)
-- **Authentification par magic link** (pas de mot de passe), valable 20 minutes
+- **Authentification par magic link** (pas de mot de passe), valable 20 minutes, ou via Google, GitHub et Sign in with Apple (app iOS) ; tous les canaux aboutissent à la même session, l'e-mail restant l'identifiant du compte
 - **"Mes alertes"** : gestion des domaines surveillés (filtres, pagination 20/page, recherche), import/export CSV, consultation du WHOIS complet en modale, préférences d'alertes (e-mail / période de grâce) par utilisateur
-- **Suppression de compte** (RGPD) : un e-mail de confirmation déclenche l'effacement définitif de toutes les données liées à une adresse e-mail
+- **Suppression de compte** (RGPD) : immédiate pour une session authentifiée (app), sinon via un e-mail de confirmation ; efface toutes les données liées à l'adresse et révoque le jeton Apple éventuel
 - **API publique v1** avec clé développeur (`dk_...`), 100 requêtes/jour, 3 clés max par e-mail
 - **PWA** installable avec notifications push (Firebase)
 - Limites : 50 surveillances actives / 200 au total par e-mail
@@ -56,6 +56,10 @@ npm start
 | `RESEND_API_KEY` | Clé API [Resend](https://resend.com) |
 | `EMAIL_FROM` | Adresse d'expédition des e-mails |
 | `APP_URL` | URL publique du site (utilisée dans les liens des e-mails) |
+| `APPLE_CLIENT_ID` | Bundle ID de l'app iOS (`fr.dahuconcept.doomname`), utilisé pour l'échange de code et la révocation Apple |
+| `APPLE_TEAM_ID` | Team ID Apple Developer |
+| `APPLE_KEY_ID` | Key ID de la clé Sign in with Apple (`.p8`) |
+| `APPLE_PRIVATE_KEY` | Contenu de la clé `.p8` (les `\n` littéraux sont acceptés). Sans les quatre variables `APPLE_*`, `/api/auth/apple` répond 503 et la révocation est ignorée |
 | `ADMIN_ALERT_EMAIL` | Adresse qui reçoit un e-mail quand le disjoncteur WHOIS se déclenche (taux anormal de bascules « disponible » ou de réponses « unknown » sur un TLD). **Optionnel, mais sans cette variable le disjoncteur ne notifie personne** : il suspend les envois et écrit seulement une ligne `[DISJONCTEUR]` en ERROR dans les logs. |
 
 ## Déploiement
@@ -64,7 +68,7 @@ Hébergé sur [Railway](https://railway.app) (`Procfile` : `web: node server.js`
 
 ## Application mobile
 
-Le pendant Android de ce service vit dans [doomname-app](https://github.com/Epilouptique/doomname-app) (Expo / React Native), qui consomme la même API.
+Le pendant Android / iOS de ce service vit dans [doomname-app](https://github.com/Epilouptique/doomname-app) (Expo / React Native), qui consomme la même API.
 
 ---
 

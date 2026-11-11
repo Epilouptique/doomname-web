@@ -161,11 +161,19 @@ async function createSession(res, email) {
   return token;
 }
 
-// Email de la session courante : cookie httpOnly (web) ou en-tête
-// « Authorization: Bearer <jeton> » (app, qui ne dispose pas du cookie).
-async function getSessionEmail(req) {
-  const auth  = String(req.get('authorization') || '');
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : req.cookies?.[SESSION_COOKIE];
+// Jeton porté par l'en-tête « Authorization: Bearer <jeton> » (app), ou null.
+function bearerToken(req) {
+  const auth = String(req.get('authorization') || '');
+  return auth.startsWith('Bearer ') ? (auth.slice(7).trim() || null) : null;
+}
+
+// Email de la session courante.
+//   bearerOnly = false (défaut, LECTURE) : Bearer, sinon cookie httpOnly (web).
+//   bearerOnly = true  (actions DESTRUCTRICES) : Bearer uniquement. Le cookie part
+//   automatiquement avec toute requête du site (ex. formulaire de cgv.html) : il
+//   ne doit jamais suffire à supprimer un compte. Voir RESUME_TECHNIQUE.md.
+async function getSessionEmail(req, { bearerOnly = false } = {}) {
+  const token = bearerToken(req) || (bearerOnly ? null : req.cookies?.[SESSION_COOKIE]);
   if (!token) return null;
   const { rows } = await db.query('SELECT email FROM sessions WHERE token = $1 AND expires_at > NOW()', [token]);
   return rows[0]?.email || null;
@@ -978,10 +986,11 @@ app.get('/api/auth/session', async (req, res) => {
   }
 });
 
-// Déconnexion : révoque la session en base et efface le cookie.
+// Déconnexion : révoque en base la session du Bearer (app) et celle du cookie
+// (web), puis efface le cookie.
 app.post('/api/auth/logout', async (req, res) => {
-  const token = req.cookies?.[SESSION_COOKIE];
-  try { if (token) await db.query('DELETE FROM sessions WHERE token = $1', [token]); } catch {}
+  const tokens = [bearerToken(req), req.cookies?.[SESSION_COOKIE]].filter(Boolean);
+  try { if (tokens.length) await db.query('DELETE FROM sessions WHERE token = ANY($1)', [tokens]); } catch {}
   res.clearCookie(SESSION_COOKIE, { path: '/' });
   return res.json({ success: true });
 });
@@ -1502,12 +1511,12 @@ async function deleteAccount(email) {
   console.log(`🗑️  Compte supprimé : ${email}`);
 }
 
-// Avec un jeton de session (Bearer app ou cookie web) : suppression IMMÉDIATE du
-// seul compte de cette session (la confirmation a lieu côté client) ; l'email du
-// corps est alors ignoré. Sans session : flux historique par e-mail de confirmation.
+// Avec un Bearer valide (app) : suppression IMMÉDIATE du seul compte de cette
+// session (la confirmation a lieu côté client) ; l'email du corps est ignoré.
+// Sans Bearer, MÊME avec un cookie de session : flux par e-mail de confirmation.
 app.post('/api/account/delete-request', async (req, res) => {
   let sessionEmail = null;
-  try { sessionEmail = await getSessionEmail(req); } catch (e) { console.error('getSessionEmail:', e.message); }
+  try { sessionEmail = await getSessionEmail(req, { bearerOnly: true }); } catch (e) { console.error('getSessionEmail:', e.message); }
   if (sessionEmail) {
     try {
       await deleteAccount(sessionEmail);
@@ -1959,6 +1968,12 @@ cron.schedule('0 * * * *', async () => {
   }
   cronRunning = true;
   console.log(`\n🔄 [${new Date().toISOString()}] Lancement du cron job…`);
+  // Purge des sessions expirées, indépendante du run WHOIS : un échec ici ne
+  // doit pas l'empêcher.
+  try {
+    const { rowCount } = await db.query('DELETE FROM sessions WHERE expires_at < NOW()');
+    if (rowCount) console.log(`🧹 ${rowCount} session(s) expirée(s) purgée(s)`);
+  } catch (e) { console.error('Purge sessions :', e.message); }
   try {
     await runCron();
   } finally {
