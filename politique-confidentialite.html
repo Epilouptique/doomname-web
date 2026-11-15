@@ -183,8 +183,8 @@
       <span class="logo-text">DoomName</span>
     </a>
     <h1>Politique de <em>confidentialité</em></h1>
-    <p class="tagline">Comment DoomName collecte, utilise et protège vos données personnelles.</p>
-    <span class="update-date">Mise à jour : 27 juin 2026</span>
+    <p class="tagline">Comment DoomName collecte, utilise et protège vos données personnelles, sur le site, l'application mobile et l'extension navigateur.</p>
+    <span class="update-date">Mise à jour : 15 novembre 2026</span>
   </header>
 
   <div data-en-only data-i18n="legal.notice" style="display:none;max-width:720px;margin:0 auto 1rem;padding:0.7rem 1rem;border:1px solid var(--border-md);border-radius:8px;background:var(--surface2);color:var(--text-muted);font-size:0.82rem;text-align:center">Courtesy translation — only the French version prevails.</div>
@@ -198,7 +198,7 @@
         <span class="article-title">Responsable du traitement</span>
       </div>
       <div class="article-body">
-        <p>Le responsable du traitement des données personnelles collectées via DoomName (application web et mobile) est :</p>
+        <p>Le responsable du traitement des données personnelles collectées via DoomName (application web, mobile et extension navigateur) est :</p>
         <div class="id-grid">
           <span class="id-label">Nom</span>      <span class="id-val">Hugo Vial-Jaime</span>
           <span class="id-label">Statut</span>   <span class="id-val">Auto-entrepreneur (microentreprise)</span>
@@ -242,9 +242,37 @@
     </div>
 
     <!-- Article 4 -->
-    <div class="article">
+    <div class="article" id="extension">
       <div class="article-header">
         <span class="article-num">4</span>
+        <span class="article-title">Extension navigateur — données et permissions</span>
+      </div>
+      <div class="article-body">
+        <p>L'extension DoomName pour Chrome et Firefox permet de vérifier la disponibilité d'un nom de domaine et d'activer une alerte depuis l'onglet en cours. Elle s'adresse au même service que le site : <strong>aucune donnée n'est transmise à un tiers</strong>, la seule destination réseau étant <code>www.doomname.com</code>.</p>
+        <table class="data-table">
+          <tr><th>Donnée</th><th>Où elle est stockée</th><th>Finalité</th></tr>
+          <tr><td><strong>Adresse e-mail d'alerte</strong></td><td>Stockage du navigateur, et base DoomName lors d'un ajout de surveillance</td><td>Envoyer les alertes de disponibilité</td></tr>
+          <tr><td><strong>Nom de domaine vérifié</strong></td><td>Envoyé au serveur pour la requête WHOIS, mis en cache 10 minutes dans le navigateur</td><td>Afficher le statut du domaine</td></tr>
+          <tr><td><strong>Historique de recherche</strong></td><td>Uniquement dans le navigateur (8 entrées maximum)</td><td>Proposer les recherches récentes</td></tr>
+          <tr><td><strong>Préférences</strong></td><td>Uniquement dans le navigateur</td><td>Thème et options d'affichage</td></tr>
+        </table>
+        <p style="margin-top:0.75rem">Les permissions demandées sont limitées au strict nécessaire :</p>
+        <ul>
+          <li><strong>Onglet actif</strong> — l'adresse de l'onglet en cours est lue, à la demande, dans le seul but d'en extraire le nom de domaine. <strong>L'historique de navigation n'est ni lu ni transmis.</strong></li>
+          <li><strong>Stockage</strong> — mémoriser l'adresse e-mail d'alerte, les préférences, le cache et l'historique de recherche.</li>
+          <li><strong>Menus contextuels et notifications</strong> — proposer l'ajout d'une surveillance et en confirmer l'enregistrement.</li>
+          <li><strong>Accès à <code>www.doomname.com</code></strong> — seule destination des requêtes réseau.</li>
+        </ul>
+        <div class="info-block">
+          L'extension n'injecte aucun script dans les pages que vous consultez, n'affiche aucune publicité et n'utilise aucun traceur. Le cache et l'historique de recherche peuvent être effacés à tout moment depuis sa page de réglages.
+        </div>
+      </div>
+    </div>
+
+    <!-- Article 5 -->
+    <div class="article">
+      <div class="article-header">
+        <span class="article-num">5</span>
         <span class="article-title">Sous-traitants et partage de données</span>
       </div>
       <div class="article-body">
@@ -260,10 +288,10 @@
       </div>
     </div>
 
-    <!-- Article 5 -->
+    <!-- Article 6 -->
     <div class="article">
       <div class="article-header">
-        <span class="article-num">5</span>
+        <span class="article-num">6</span>
         <span class="article-title">Durée de conservation</span>
       </div>
       <div class="article-body">
@@ -277,10 +305,10 @@
       </div>
     </div>
 
-    <!-- Article 6 -->
+    <!-- Article 7 -->
     <div class="article">
       <div class="article-header">
-        <span class="article-num">6</span>
+        <span class="article-num">7</span>
         <span class="article-title">Sécurité des données</span>
       </div>
       <div class="article-body">
@@ -288,10 +316,10 @@
       </div>
     </div>
 
-    <!-- Article 7 -->
+    <!-- Article 8 -->
     <div class="article">
       <div class="article-header">
-        <span class="article-num">7</span>
+        <span class="article-num">8</span>
         <span class="article-title">Vos droits (RGPD)</span>
       </div>
       <div class="article-body">
@@ -307,10 +335,10 @@
       </div>
     </div>
 
-    <!-- Article 8 -->
+    <!-- Article 9 -->
     <div class="article">
       <div class="article-header">
-        <span class="article-num">8</span>
+        <span class="article-num">9</span>
         <span class="article-title">Cookies et traceurs</span>
       </div>
       <div class="article-body">
@@ -319,10 +347,10 @@
       </div>
     </div>
 
-    <!-- Article 9 -->
+    <!-- Article 10 -->
     <div class="article">
       <div class="article-header">
-        <span class="article-num">9</span>
+        <span class="article-num">10</span>
         <span class="article-title">Modifications de cette politique</span>
       </div>
       <div class="article-body">
