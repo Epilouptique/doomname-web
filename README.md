@@ -70,6 +70,10 @@ Hébergé sur [Railway](https://railway.app) (`Procfile` : `web: node server.js`
 
 Le pendant Android / iOS de ce service vit dans [doomname-app](https://github.com/Epilouptique/doomname-app) (Expo / React Native), qui consomme la même API.
 
+## Licence
+
+MIT — voir [LICENSE](LICENSE).
+
 ---
 
 Développé par Hugo Vial-Jaime — Agence [Dahu-Concept](https://dahu-concept.fr)

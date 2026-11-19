@@ -1,0 +1,42 @@
+# DoomName
+
+> Service gratuit et open-source de surveillance de disponibilité de noms de
+> domaine. Vérification WHOIS en temps réel et alerte e-mail dès qu'un domaine
+> surveillé se libère. Web, Android, iOS, extensions Chrome et Firefox, API publique.
+
+DoomName vérifie chaque heure les domaines surveillés et notifie par e-mail et
+par notification push. Avant d'envoyer une alerte « disponible », le domaine est
+revérifié dix minutes plus tard afin d'écarter les faux positifs provoqués par
+les bots de drop-catching. Les statuts de fin de vie sont distingués : période
+de grâce, rédemption, suppression imminente, en plus de disponible et pris.
+
+Gratuit, sans publicité, aucune donnée revendue. Authentification par lien
+magique, sans mot de passe, ou via Google, GitHub et Apple. Limites par adresse
+e-mail : 50 surveillances actives, 200 au total.
+
+Développé par Hugo Vial-Jaime, webmaster indépendant (Agence Dahu-Concept, Gap,
+Hautes-Alpes, France). Code publié sous licence MIT.
+
+## Pages
+
+- [Accueil et vérification](https://www.doomname.com/): vérifier la disponibilité d'un domaine et créer une surveillance
+- [Mes alertes](https://www.doomname.com/manage.html): gérer les domaines surveillés, import et export CSV, préférences d'alertes
+- [API publique](https://www.doomname.com/developer.html): API REST v1, clé développeur, 100 requêtes par jour
+- [Documentation](https://www.doomname.com/docs.html): documentation technique du service
+- [Nous soutenir](https://www.doomname.com/soutenir.html): soutenir le projet
+- [Politique de confidentialité](https://www.doomname.com/politique-confidentialite.html): traitement des données personnelles
+- [CGU et CGV](https://www.doomname.com/cgv.html): conditions d'utilisation et suppression de compte
+
+## Applications
+
+- [Application Android](https://play.google.com/store/apps/details?id=fr.dahuconcept.doomname): application gratuite sur Google Play
+- [Application iOS](https://apps.apple.com/app/doomname/id6833613526): application gratuite sur l'App Store
+
+Des extensions navigateur sont également publiées pour Chrome et Firefox : elles
+permettent de vérifier et de surveiller le domaine de l'onglet courant en un clic.
+
+## Code source
+
+- [doomname-web](https://github.com/Epilouptique/doomname-web): service web, Node.js, Express et PostgreSQL
+- [doomname-app](https://github.com/Epilouptique/doomname-app): application Android et iOS, React Native et Expo
+- [doomname-extension](https://github.com/Epilouptique/doomname-extension): extensions Chrome et Firefox
