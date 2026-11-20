@@ -4,6 +4,7 @@ const express    = require('express');
 const cors       = require('cors');
 const cookieParser = require('cookie-parser');
 const path       = require('path');
+const fs         = require('fs');
 const crypto     = require('crypto');
 const whoisLib   = require('whois');
 const parseWhoisFields = require('whois-json/parse-raw-data.js');
@@ -22,6 +23,41 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
+// ─── Version anglaise de l'accueil : /en ──────────────────────────────────────
+// Même contenu que index.html, mais <html lang="en"> et métadonnées (title,
+// description, Open Graph, Twitter, canonical) en anglais, pour les robots et les
+// aperçus de partage que i18n.js (côté client) ne peut pas corriger.
+// Déclarée AVANT express.static. /en/ redirige vers /en (chemins relatifs).
+const EN_META = [
+  ['<html lang="fr">', '<html lang="en">'],
+  [/<title>[^<]*<\/title>/, '<title>DoomName — Free domain name availability monitoring</title>'],
+  [/(<meta name="description" content=")[^"]*/, '$1DoomName monitors the availability of your domain names for free and alerts you by email or push notification as soon as an expired domain becomes available. Real-time WHOIS lookup.'],
+  [/(<link rel="canonical" href=")[^"]*/, '$1https://www.doomname.com/en'],
+  [/(<meta property="og:locale" content=")[^"]*/, '$1en_US'],
+  [/(<meta property="og:title" content=")[^"]*/, '$1DoomName — Free domain name monitoring'],
+  [/(<meta property="og:description" content=")[^"]*/, '$1Get alerted as soon as a domain name becomes available. Free WHOIS monitoring, email alerts and push notifications.'],
+  [/(<meta property="og:url" content=")[^"]*/, '$1https://www.doomname.com/en'],
+  [/(<meta name="twitter:title" content=")[^"]*/, '$1DoomName — Free domain name monitoring'],
+  [/(<meta name="twitter:description" content=")[^"]*/, '$1Get alerted as soon as a domain name becomes available. Free WHOIS monitoring.'],
+  [/(<meta property="og:locale" content="en_US" \/>)/, '$1\n  <meta property="og:locale:alternate" content="fr_FR" />'],
+];
+function renderIndexEn() {
+  let html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  for (const [from, to] of EN_META) {
+    const next = html.replace(from, to);
+    if (next === html) console.warn('[en] métadonnée non remplacée :', String(from));
+    html = next;
+  }
+  return html;
+}
+let indexEnCache = null;
+app.get('/en', (req, res) => {
+  // Routage non strict : '/en' attrape aussi '/en/'.
+  if (req.path.endsWith('/')) return res.redirect(301, '/en' + req.url.slice(req.path.length));
+  if (!indexEnCache || process.env.NODE_ENV !== 'production') indexEnCache = renderIndexEn();
+  res.type('html').send(indexEnCache);
+});
+
 app.use(express.static(path.join(__dirname)));
 
 // ─── Transition Bearer des endpoints de gestion (phase 1 : mesure) ─────────────

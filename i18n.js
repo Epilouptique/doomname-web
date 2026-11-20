@@ -481,6 +481,8 @@
   };
 
   function detect() {
+    // /en : version anglaise servie par server.js (métadonnées traduites).
+    if (/^\/en\/?$/.test(location.pathname)) return 'en';
     const q = new URLSearchParams(location.search).get('lang');
     if (q === 'fr' || q === 'en') { localStorage.setItem('dw-lang', q); return q; }
     const saved = localStorage.getItem('dw-lang');
