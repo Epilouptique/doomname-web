@@ -5,6 +5,16 @@
   const DICT = {
     fr: {
       'nav.lang': 'FR',
+      // Pied de page
+      'footer.made_by': 'Développé par',
+      'footer.agency': 'Agence',
+      'footer.home': 'Accueil',
+      'footer.developers': 'Développeurs',
+      'footer.cgv': 'CGV',
+      'home.appstore_badge_alt': 'Télécharger dans l\'App Store',
+      'home.play_badge_alt': 'Disponible sur Google Play',
+      'home.domain_ph': 'exemple.com',
+      'home.email_ph': 'vous@exemple.com',
       // Nous soutenir
       'support.nav': 'Nous soutenir',
       'support.h1': 'Nous <em>soutenir</em>',
@@ -234,6 +244,16 @@
     },
     en: {
       'nav.lang': 'EN',
+      // Footer
+      'footer.made_by': 'Developed by',
+      'footer.agency': 'Agency',
+      'footer.home': 'Home',
+      'footer.developers': 'Developers',
+      'footer.cgv': 'Terms',
+      'home.appstore_badge_alt': 'Download on the App Store',
+      'home.play_badge_alt': 'Get it on Google Play',
+      'home.domain_ph': 'example.com',
+      'home.email_ph': 'you@example.com',
       // Support us
       'support.nav': 'Support us',
       'support.h1': 'Support <em>us</em>',

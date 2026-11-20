@@ -210,7 +210,7 @@
     <div class="card-section">
       <span class="section-tag" data-i18n="home.tag_check">Vérifier un domaine</span>
       <div class="input-row">
-        <input type="text" id="domain-input" placeholder="exemple.com"
+        <input type="text" id="domain-input" placeholder="exemple.com" data-i18n-ph="home.domain_ph"
           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
         <button class="btn btn-primary" id="check-btn" onclick="checkDomain()" data-i18n="home.check_btn">Surveiller</button>
       </div>
@@ -231,7 +231,7 @@
         Entrez votre e-mail pour être alerté dès qu'il sera disponible.
       </p>
       <div class="input-row">
-        <input type="email" id="email-input" placeholder="vous@exemple.com" />
+        <input type="email" id="email-input" placeholder="vous@exemple.com" data-i18n-ph="home.email_ph" />
         <button class="btn btn-success" id="subscribe-btn" onclick="subscribe()" data-i18n="home.subscribe_btn">M'alerter</button>
       </div>
       <div class="subscribe-confirm" id="subscribe-confirm">
@@ -317,6 +317,19 @@
           <span style="font-size:0.92rem;font-weight:500" data-i18n="home.firefox_badge_main">Firefox</span>
         </span>
       </a>
+      <!-- Badge AlternativeTo (code fourni par AlternativeTo). Hauteur alignée sur
+           les badges Chrome/Firefox (54px), largeur proportionnelle (ratio 171x58).
+           Variante claire/sombre selon le thème, comme le logo DoomName. -->
+      <a href="https://alternativeto.net/software/doomname/about/?utm_source=badge&utm_medium=referral" target="_blank" rel="noopener">
+        <img class="theme-img-light" src="https://alternativeto.net/static/badges/badge-compact-light.svg"
+             alt="DoomName | AlternativeTo"
+             width="159" height="54"
+             style="width: 159px; height: 54px;" />
+        <img class="theme-img-dark" src="https://alternativeto.net/static/badges/badge-compact-dark.svg"
+             alt="DoomName | AlternativeTo"
+             width="159" height="54"
+             style="width: 159px; height: 54px;" />
+      </a>
     </div>
     <button id="notif-btn" onclick="enableNotifications()" style="display:none;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border-md);border-radius:20px;padding:6px 14px;font-size:0.78rem;color:var(--text-muted);font-family:var(--sans);cursor:pointer;margin-top:0.75rem;box-shadow:var(--shadow)">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.2a2.1 2.1 0 0 0-2.1 2.1c0 2.45-1 3.15-1 3.85 0 .39.31.7.7.7h4.8c.39 0 .7-.31.7-.7 0-.7-1-1.4-1-3.85A2.1 2.1 0 0 0 6.5 1.2ZM5.5 10a1 1 0 0 0 2 0" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -325,11 +338,11 @@
   </div>
 
   <footer>
-    DoomName v1.0 — Développé par Hugo Vial-Jaime
-    — Agence <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
-    &nbsp;·&nbsp; <a href="/developer.html">Développeurs</a>
-    &nbsp;·&nbsp; <a href="/cgv.html">CGV</a>
-    &nbsp;·&nbsp; <a href="/soutenir.html">Nous soutenir</a>
+    DoomName v1.0 — <span data-i18n="footer.made_by">Développé par</span> Hugo Vial-Jaime
+    — <span data-i18n="footer.agency">Agence</span> <a href="https://dahu-concept.fr" target="_blank">Dahu-Concept</a>
+    &nbsp;·&nbsp; <a href="/developer.html" data-i18n="footer.developers">Développeurs</a>
+    &nbsp;·&nbsp; <a href="/cgv.html" data-i18n="footer.cgv">CGV</a>
+    &nbsp;·&nbsp; <a href="/soutenir.html" data-i18n="support.nav">Nous soutenir</a>
   </footer>
 
   <script>
@@ -337,15 +350,28 @@
 
     // TODO: fiche Play Store pas encore publiée — mettre à jour l'URL le moment venu.
     const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=fr.dahuconcept.doomname';
-    function updatePlayBadge() {
+    // Badges officiels App Store / Google Play : image, alt et aria-label
+    // suivent la langue active (badge Apple FR en PNG, EN en SVG officiel).
+    function updateStoreBadges() {
+      const l  = (window.i18n ? window.i18n.lang : 'fr') === 'en' ? 'en' : 'fr';
+      const tr = k => (window.i18n ? window.i18n.t(k) : null);
       const link = document.getElementById('play-badge-link');
       const img  = document.getElementById('play-badge-img');
-      if (link) link.href = PLAY_STORE_URL;
-      const l = (window.i18n ? window.i18n.lang : 'fr');
-      if (img) img.src = `https://play.google.com/intl/en_us/badges/static/images/badges/${l === 'en' ? 'en' : 'fr'}_badge_web_generic.png`;
+      if (link) { link.href = PLAY_STORE_URL; link.setAttribute('aria-label', tr('home.play_badge_alt') || link.getAttribute('aria-label')); }
+      if (img) {
+        img.src = `https://play.google.com/intl/en_us/badges/static/images/badges/${l}_badge_web_generic.png`;
+        img.alt = tr('home.play_badge_alt') || img.alt;
+      }
+      const aLink = document.getElementById('appstore-badge-link');
+      const aImg  = document.getElementById('appstore-badge-img');
+      if (aLink) aLink.setAttribute('aria-label', tr('home.appstore_badge_alt') || aLink.getAttribute('aria-label'));
+      if (aImg) {
+        aImg.src = l === 'en' ? '/app-store-en.svg' : '/app-store-fr.png';
+        aImg.alt = tr('home.appstore_badge_alt') || aImg.alt;
+      }
     }
-    updatePlayBadge();
-    document.addEventListener('langchange', updatePlayBadge);
+    updateStoreBadges();
+    document.addEventListener('langchange', updateStoreBadges);
 
     // ─── Thème ────────────────────────────────────────────────────────────────
     const DARK_HOUR_START = 20;
