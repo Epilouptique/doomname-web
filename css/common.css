@@ -112,6 +112,10 @@ header { text-align: center; margin-bottom: 3rem; }
 .logo-img-dark { display: none; }
 [data-theme="dark"] .logo-img-light { display: none; }
 [data-theme="dark"] .logo-img-dark { display: block; }
+/* Image à variante claire/sombre (ex. badge AlternativeTo) */
+.theme-img-dark { display: none; }
+[data-theme="dark"] .theme-img-light { display: none; }
+[data-theme="dark"] .theme-img-dark { display: inline-block; }
 
 .logo-text {
   font-family: 'AmazDoom', var(--mono);

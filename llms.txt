@@ -31,9 +31,8 @@ Hautes-Alpes, France). Code publié sous licence MIT.
 
 - [Application Android](https://play.google.com/store/apps/details?id=fr.dahuconcept.doomname): application gratuite sur Google Play
 - [Application iOS](https://apps.apple.com/app/doomname/id6833613526): application gratuite sur l'App Store
-
-Des extensions navigateur sont également publiées pour Chrome et Firefox : elles
-permettent de vérifier et de surveiller le domaine de l'onglet courant en un clic.
+- [Extension Chrome](https://chromewebstore.google.com/detail/doomname-%E2%80%94-surveillance-d/lafgkmmmkofidhhodeglkpeokcbkflgh): vérifier et surveiller le domaine de l'onglet courant en un clic
+- [Extension Firefox](https://addons.mozilla.org/addon/doomname-surveillance-domaines/): version Firefox de l'extension
 
 ## Code source
 
